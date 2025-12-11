@@ -14,6 +14,3 @@ too-many-arguments-threshold = 7
 
 # Type complexity threshold
 type-complexity-threshold = 250
-
-# Maximum allowed size for `Result`'s `Err` variant
-result-err-max-size = 128

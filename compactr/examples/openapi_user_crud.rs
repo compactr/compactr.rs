@@ -110,7 +110,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n✓ Success! Compactr provides:");
-    println!("  • Compact binary encoding ({:.0}% smaller than JSON)", savings_pct1);
+    println!(
+        "  • Compact binary encoding ({:.0}% smaller than JSON)",
+        savings_pct1
+    );
     println!("  • OpenAPI-compatible schemas");
     println!("  • Proper handling of optional fields");
     println!("  • Framework-agnostic approach");
@@ -127,16 +130,10 @@ fn create_user_schema() -> SchemaType {
         "id".to_owned(),
         Property::required(SchemaType::string_uuid()),
     );
-    properties.insert(
-        "name".to_owned(),
-        Property::required(SchemaType::string()),
-    );
+    properties.insert("name".to_owned(), Property::required(SchemaType::string()));
 
     // Optional field
-    properties.insert(
-        "email".to_owned(),
-        Property::optional(SchemaType::string()),
-    );
+    properties.insert("email".to_owned(), Property::optional(SchemaType::string()));
 
     // Required timestamp
     properties.insert(
@@ -148,7 +145,11 @@ fn create_user_schema() -> SchemaType {
 }
 
 /// Create a User value
-fn create_user(id: &str, name: &str, email: Option<&str>) -> Result<Value, Box<dyn std::error::Error>> {
+fn create_user(
+    id: &str,
+    name: &str,
+    email: Option<&str>,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let mut user = IndexMap::new();
 
     user.insert("id".to_owned(), Value::Uuid(Uuid::parse_str(id)?));

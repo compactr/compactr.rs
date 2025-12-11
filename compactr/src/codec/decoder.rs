@@ -233,11 +233,8 @@ mod tests {
     #[test]
     fn test_decode_string() {
         let mut enc = Encoder::new();
-        enc.encode(
-            &Value::String("hello".to_owned()),
-            &SchemaType::string(),
-        )
-        .unwrap();
+        enc.encode(&Value::String("hello".to_owned()), &SchemaType::string())
+            .unwrap();
         let bytes = enc.finish();
 
         let mut buf = bytes.as_ref();
@@ -267,10 +264,7 @@ mod tests {
         use crate::schema::Property;
 
         let mut properties = IndexMap::new();
-        properties.insert(
-            "name".to_owned(),
-            Property::required(SchemaType::string()),
-        );
+        properties.insert("name".to_owned(), Property::required(SchemaType::string()));
         properties.insert("age".to_owned(), Property::required(SchemaType::int32()));
 
         let schema = SchemaType::object(properties);

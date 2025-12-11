@@ -1,9 +1,15 @@
-# Compactr
-
-
-OpenAPI 3.x schema-based binary serialization
-
-## Features
+<h1 align="center">
+  <a title="OpenAPI serialization" href="http://compactr.js.org">
+    <img alt="Compactr" width="320px" src="http://res.cloudinary.com/kalm/image/upload/v1494589244/compactr_header_rev1.png" />
+    <br/><br/>
+  </a>
+  Compactr
+</h1>
+<h3 align="center">
+  OpenAPI serialization
+  <br/><br/><br/>
+</h3>
+<br/>
 
 - **Schema-based serialization**: Define data structures using OpenAPI 3.x compatible schemas
 - **Compact binary format**: 3-5x size reduction compared to JSON
@@ -11,7 +17,7 @@ OpenAPI 3.x schema-based binary serialization
 - **Cross-language**: Binary output compatible with all other Compactr clients (.js, .cs)
 - **Thread-safe**: Schema registry with concurrent access support
 
-## Installation
+## Install
 
 Add this to your `Cargo.toml`:
 
@@ -29,7 +35,7 @@ compactr = { version = "0.1", features = ["serde"] }
 compactr = { version = "0.1", features = ["full"] }
 ```
 
-## Quick Start
+## Usage
 
 ### Using the Value API
 
@@ -58,7 +64,7 @@ let value = Value::Object(obj);
 // let decoded = decode(&encoded, &schema)?;
 ```
 
-### Using Derive Macros (Coming Soon)
+### Using Derive Macros (WIP)
 
 ```rust
 use compactr_derive::Compactr;
@@ -73,9 +79,6 @@ struct User {
 }
 ```
 
-## OpenAPI Integration
-
-Compactr is framework-agnostic and works with any OpenAPI schema source, similar to [compactr.js](https://compactr.js.org). You can:
 
 ### Load Existing OpenAPI Specs
 
@@ -158,19 +161,7 @@ See `examples/openapi_*.rs` for complete integration examples.
 - [ ] Derive macros
 - [ ] Cross-language compatibility tests
 
-See [compactr-rust-implementation-plan.md](compactr-rust-implementation-plan.md) for the complete roadmap.
-
-## Binary Format Compatibility
-
-This library maintains binary format compatibility with Compactr.js, allowing seamless data exchange between Rust and JavaScript applications.
-
-## Performance
-
-Performance benchmarks will be added once the implementation is complete. Target: within 2x of JSON performance with 3-5x size reduction.
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines (coming soon).
+## Testing
 
 ### Building from Source
 
@@ -192,6 +183,17 @@ cargo test --all-features
 ```bash
 cargo bench
 ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
 
 ## License
 

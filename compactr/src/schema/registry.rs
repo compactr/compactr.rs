@@ -36,9 +36,10 @@ impl SchemaRegistry {
     /// Returns an error if the lock is poisoned (should not happen in normal usage).
     pub fn register(&self, name: impl Into<String>, schema: SchemaType) -> Result<()> {
         let name = name.into();
-        let mut schemas = self.schemas.write().map_err(|_| {
-            SchemaError::InvalidSchema("Failed to acquire write lock".to_owned())
-        })?;
+        let mut schemas = self
+            .schemas
+            .write()
+            .map_err(|_| SchemaError::InvalidSchema("Failed to acquire write lock".to_owned()))?;
         schemas.insert(name, schema);
         Ok(())
     }
@@ -49,9 +50,10 @@ impl SchemaRegistry {
     ///
     /// Returns an error if the lock is poisoned.
     pub fn get(&self, name: &str) -> Result<Option<SchemaType>> {
-        let schemas = self.schemas.read().map_err(|_| {
-            SchemaError::InvalidSchema("Failed to acquire read lock".to_owned())
-        })?;
+        let schemas = self
+            .schemas
+            .read()
+            .map_err(|_| SchemaError::InvalidSchema("Failed to acquire read lock".to_owned()))?;
         Ok(schemas.get(name).cloned())
     }
 
@@ -117,9 +119,7 @@ mod tests {
     #[test]
     fn test_register_and_get() {
         let registry = SchemaRegistry::new();
-        registry
-            .register("User", SchemaType::string())
-            .unwrap();
+        registry.register("User", SchemaType::string()).unwrap();
 
         let schema = registry.get("User").unwrap();
         assert_eq!(schema, Some(SchemaType::string()));
@@ -128,9 +128,7 @@ mod tests {
     #[test]
     fn test_resolve_simple_reference() {
         let registry = SchemaRegistry::new();
-        registry
-            .register("User", SchemaType::string())
-            .unwrap();
+        registry.register("User", SchemaType::string()).unwrap();
 
         let resolved = registry.resolve_ref("#/User").unwrap();
         assert_eq!(resolved, SchemaType::string());
@@ -149,9 +147,9 @@ mod tests {
         let result = registry.resolve_ref("#/A");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Schema(
-                SchemaError::CircularReference(_)
-            ))
+            Err(crate::error::Error::Schema(SchemaError::CircularReference(
+                _
+            )))
         ));
     }
 

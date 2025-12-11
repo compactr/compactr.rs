@@ -14,15 +14,6 @@ pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
     decode_bin(buf)
 }
 
-/// Parses Base64-encoded binary data.
-#[cfg(feature = "serde")]
-pub fn parse_base64(s: &str) -> Result<Vec<u8>, EncodeError> {
-    use base64::{engine::general_purpose, Engine as _};
-    general_purpose::STANDARD
-        .decode(s)
-        .map_err(|e| EncodeError::InvalidFormat(format!("Invalid Base64: {e}")))
-}
-
 /// Returns the encoded size of binary data.
 #[must_use]
 pub fn size(data: &[u8]) -> usize {

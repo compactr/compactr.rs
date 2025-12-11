@@ -12,7 +12,11 @@
 use chrono::Utc;
 use compactr::{Decoder, Encoder, Property, SchemaRegistry, SchemaType, Value};
 use indexmap::IndexMap;
-use openapiv3::{OpenAPI, ReferenceOr, Schema, SchemaKind, Type};
+use openapiv3::{
+    IntegerFormat as OpenAPIIntegerFormat, NumberFormat as OpenAPINumberFormat, OpenAPI,
+    ReferenceOr, Schema, SchemaKind, StringFormat as OpenAPIStringFormat, Type,
+    VariantOrUnknownOrEmpty,
+};
 use uuid::Uuid;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -143,43 +147,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn convert_schema(schema: &Schema) -> Result<SchemaType, String> {
     match &schema.schema_kind {
         SchemaKind::Type(Type::String(string_type)) => {
-            if let Some(format) = &string_type.format {
-                match format.as_str() {
+            match &string_type.format {
+                VariantOrUnknownOrEmpty::Item(OpenAPIStringFormat::Date) => {
+                    Ok(SchemaType::string_date())
+                }
+                VariantOrUnknownOrEmpty::Item(OpenAPIStringFormat::DateTime) => {
+                    Ok(SchemaType::string_datetime())
+                }
+                VariantOrUnknownOrEmpty::Item(
+                    OpenAPIStringFormat::Binary | OpenAPIStringFormat::Byte,
+                ) => Ok(SchemaType::binary()),
+                VariantOrUnknownOrEmpty::Unknown(s) => match s.as_str() {
                     "uuid" => Ok(SchemaType::string_uuid()),
-                    "date-time" => Ok(SchemaType::string_datetime()),
-                    "date" => Ok(SchemaType::string_date()),
                     "ipv4" => Ok(SchemaType::string_ipv4()),
                     "ipv6" => Ok(SchemaType::string_ipv6()),
-                    "binary" | "byte" => Ok(SchemaType::binary()),
                     _ => Ok(SchemaType::string()), // email, etc. treated as plain string
-                }
-            } else {
-                Ok(SchemaType::string())
+                },
+                _ => Ok(SchemaType::string()),
             }
         }
-        SchemaKind::Type(Type::Integer(int_type)) => {
-            if let Some(format) = &int_type.format {
-                match format.as_str() {
-                    "int32" => Ok(SchemaType::int32()),
-                    "int64" => Ok(SchemaType::int64()),
-                    _ => Ok(SchemaType::int64()),
-                }
-            } else {
-                Ok(SchemaType::int64())
-            }
-        }
-        SchemaKind::Type(Type::Number(num_type)) => {
-            if let Some(format) = &num_type.format {
-                match format.as_str() {
-                    "float" => Ok(SchemaType::float()),
-                    "double" => Ok(SchemaType::double()),
-                    _ => Ok(SchemaType::double()),
-                }
-            } else {
-                Ok(SchemaType::double())
-            }
-        }
-        SchemaKind::Type(Type::Boolean {}) => Ok(SchemaType::boolean()),
+        SchemaKind::Type(Type::Integer(int_type)) => match &int_type.format {
+            VariantOrUnknownOrEmpty::Item(OpenAPIIntegerFormat::Int32) => Ok(SchemaType::int32()),
+            VariantOrUnknownOrEmpty::Item(OpenAPIIntegerFormat::Int64) => Ok(SchemaType::int64()),
+            _ => Ok(SchemaType::int64()),
+        },
+        SchemaKind::Type(Type::Number(num_type)) => match &num_type.format {
+            VariantOrUnknownOrEmpty::Item(OpenAPINumberFormat::Float) => Ok(SchemaType::float()),
+            VariantOrUnknownOrEmpty::Item(OpenAPINumberFormat::Double) => Ok(SchemaType::double()),
+            _ => Ok(SchemaType::double()),
+        },
+        SchemaKind::Type(Type::Boolean(_)) => Ok(SchemaType::boolean()),
         SchemaKind::Type(Type::Array(array_type)) => {
             if let Some(ref items) = array_type.items {
                 match items {

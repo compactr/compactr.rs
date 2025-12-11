@@ -61,12 +61,8 @@ impl Encoder {
             SchemaType::Integer(format) => self.encode_integer(value, *format),
             SchemaType::Number(format) => self.encode_number(value, *format),
             SchemaType::String(format) => self.encode_string_format(value, *format),
-            SchemaType::Array(items) => {
-                self.encode_array(value, items, registry)
-            }
-            SchemaType::Object(properties) => {
-                self.encode_object(value, properties, registry)
-            }
+            SchemaType::Array(items) => self.encode_array(value, items, registry),
+            SchemaType::Object(properties) => self.encode_object(value, properties, registry),
             SchemaType::Reference(ref_name) => {
                 let resolved = registry.resolve_ref(ref_name)?;
                 self.encode_with_registry(value, &resolved, registry)
@@ -178,7 +174,9 @@ impl Encoder {
                 .into()),
             },
             StringFormat::DateTime => match value {
-                Value::DateTime(dt) => datetime::encode_datetime(&mut self.buf, dt).map_err(Into::into),
+                Value::DateTime(dt) => {
+                    datetime::encode_datetime(&mut self.buf, dt).map_err(Into::into)
+                }
                 Value::String(s) => {
                     let dt = datetime::parse_datetime(s)?;
                     datetime::encode_datetime(&mut self.buf, &dt).map_err(Into::into)
@@ -296,9 +294,7 @@ impl Encoder {
                 }
                 None => {
                     if prop_def.required {
-                        return Err(
-                            SchemaError::MissingField(prop_name.clone()).into()
-                        );
+                        return Err(SchemaError::MissingField(prop_name.clone()).into());
                     }
                     // Encode null for missing optional fields
                     self.encode_with_registry(&Value::Null, &SchemaType::Null, registry)?;
@@ -398,7 +394,11 @@ mod tests {
     #[test]
     fn test_encode_array() {
         let mut enc = Encoder::new();
-        let arr = Value::Array(vec![Value::Integer(1), Value::Integer(2), Value::Integer(3)]);
+        let arr = Value::Array(vec![
+            Value::Integer(1),
+            Value::Integer(2),
+            Value::Integer(3),
+        ]);
         enc.encode(&arr, &SchemaType::array(SchemaType::int32()))
             .unwrap();
         // 4 bytes length + 3 * 4 bytes items

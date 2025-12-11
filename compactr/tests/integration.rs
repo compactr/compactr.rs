@@ -49,7 +49,7 @@ fn test_integers() {
 fn test_floats() {
     // Float
     let schema = SchemaType::float();
-    let value = Value::Float(3.14);
+    let value = Value::Float(std::f32::consts::PI);
 
     let mut encoder = Encoder::new();
     encoder.encode(&value, &schema).unwrap();
@@ -61,7 +61,7 @@ fn test_floats() {
 
     // Double
     let schema = SchemaType::double();
-    let value = Value::Double(3.141_592_653_589_793);
+    let value = Value::Double(std::f64::consts::PI);
 
     let mut encoder = Encoder::new();
     encoder.encode(&value, &schema).unwrap();
@@ -255,10 +255,7 @@ fn test_nested_object() {
     let schema = SchemaType::object(user_props);
 
     let mut address = IndexMap::new();
-    address.insert(
-        "street".to_owned(),
-        Value::String("123 Main St".to_owned()),
-    );
+    address.insert("street".to_owned(), Value::String("123 Main St".to_owned()));
     address.insert("city".to_owned(), Value::String("Springfield".to_owned()));
 
     let mut user = IndexMap::new();

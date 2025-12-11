@@ -108,7 +108,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nTotal Size Comparison:");
     println!("  Compactr: {} bytes", total_compactr);
     println!("  JSON:     {} bytes", total_json);
-    println!("  Saved:    {} bytes ({:.1}%)\n", total_savings, total_savings_pct);
+    println!(
+        "  Saved:    {} bytes ({:.1}%)\n",
+        total_savings, total_savings_pct
+    );
 
     // Decode and verify
     println!("Decoding and Verification:");
@@ -164,10 +167,7 @@ fn create_category_schema() -> SchemaType {
     let mut properties = IndexMap::new();
 
     properties.insert("id".to_owned(), Property::required(SchemaType::int32()));
-    properties.insert(
-        "name".to_owned(),
-        Property::required(SchemaType::string()),
-    );
+    properties.insert("name".to_owned(), Property::required(SchemaType::string()));
 
     SchemaType::object(properties)
 }
@@ -180,14 +180,8 @@ fn create_product_schema() -> SchemaType {
         "id".to_owned(),
         Property::required(SchemaType::string_uuid()),
     );
-    properties.insert(
-        "name".to_owned(),
-        Property::required(SchemaType::string()),
-    );
-    properties.insert(
-        "price".to_owned(),
-        Property::required(SchemaType::double()),
-    );
+    properties.insert("name".to_owned(), Property::required(SchemaType::string()));
+    properties.insert("price".to_owned(), Property::required(SchemaType::double()));
 
     // Nested object (Category)
     properties.insert(
@@ -241,7 +235,11 @@ fn create_product(
     product.insert("category".to_owned(), category);
     product.insert(
         "tags".to_owned(),
-        Value::Array(tags.into_iter().map(|t| Value::String(t.to_owned())).collect()),
+        Value::Array(
+            tags.into_iter()
+                .map(|t| Value::String(t.to_owned()))
+                .collect(),
+        ),
     );
     product.insert("in_stock".to_owned(), Value::Boolean(in_stock));
 

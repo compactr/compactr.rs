@@ -20,9 +20,7 @@ pub fn decode_datetime(buf: &mut impl Buf) -> Result<DateTime<Utc>, DecodeError>
     let timestamp_ms = buf.get_i64_le();
     Utc.timestamp_millis_opt(timestamp_ms)
         .single()
-        .ok_or_else(|| {
-            DecodeError::InvalidData(format!("Invalid timestamp: {timestamp_ms}"))
-        })
+        .ok_or_else(|| DecodeError::InvalidData(format!("Invalid timestamp: {timestamp_ms}")))
 }
 
 /// Encodes a Date as days since Unix epoch (4 bytes, i32 little-endian).
