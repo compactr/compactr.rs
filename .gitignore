@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.editorconfig
+
+# Documentation
+/doc/
+
+# Benchmarks
+*.svg
+*.html
+
+# Testing
+*.profraw
+*.profdata
+
+ARCHITECTURE.md

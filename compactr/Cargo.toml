@@ -1,0 +1,53 @@
+[package]
+name = "compactr"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+description = "High-performance schema-based binary serialization library compatible with OpenAPI 3.x schemas"
+
+[dependencies]
+bytes.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+indexmap.workspace = true
+
+# Optional dependencies
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+compactr-derive = { path = "../compactr-derive", optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+openapiv3 = "2.0"
+
+[features]
+default = []
+serde = ["dep:serde", "dep:serde_json", "uuid/serde", "chrono/serde"]
+derive = ["dep:compactr-derive"]
+full = ["serde", "derive"]
+
+# [[bench]]
+# name = "encode"
+# harness = false
+
+# [[bench]]
+# name = "decode"
+# harness = false
+
+# [[bench]]
+# name = "comparison"
+# harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
