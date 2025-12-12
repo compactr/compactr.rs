@@ -5,12 +5,20 @@ use bytes::{Buf, BufMut, BytesMut};
 use uuid::Uuid;
 
 /// Encodes a UUID in compact 16-byte format.
+///
+/// # Errors
+///
+/// This function currently does not return errors, but the signature uses `Result` for consistency.
 pub fn encode_uuid(buf: &mut BytesMut, uuid: &Uuid) -> Result<(), EncodeError> {
     buf.put_slice(uuid.as_bytes());
     Ok(())
 }
 
 /// Decodes a UUID from 16 bytes.
+///
+/// # Errors
+///
+/// Returns an error if the buffer has insufficient data (less than 16 bytes).
 pub fn decode_uuid(buf: &mut impl Buf) -> Result<Uuid, DecodeError> {
     if buf.remaining() < 16 {
         return Err(DecodeError::UnexpectedEof);
@@ -23,6 +31,10 @@ pub fn decode_uuid(buf: &mut impl Buf) -> Result<Uuid, DecodeError> {
 }
 
 /// Parses a UUID from a string and returns the UUID.
+///
+/// # Errors
+///
+/// Returns an error if the string is not a valid UUID format.
 pub fn parse_uuid(s: &str) -> Result<Uuid, EncodeError> {
     Uuid::parse_str(s).map_err(|e| EncodeError::InvalidFormat(format!("Invalid UUID: {e}")))
 }

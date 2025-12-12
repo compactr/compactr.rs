@@ -1,17 +1,17 @@
 //! # Compactr
 //!
-//! A high-performance schema-based binary serialization library compatible with OpenAPI 3.x schemas.
+//! A high-performance schema-based binary serialization library compatible with `OpenAPI` 3.x schemas.
 //!
 //! Compactr provides efficient binary encoding/decoding of data structures based on schemas,
-//! with support for various formats including UUID, DateTime, IP addresses, and more.
+//! with support for various formats including `UUID`, `DateTime`, IP addresses, and more.
 //!
 //! ## Features
 //!
-//! - Schema-based serialization with OpenAPI 3.x compatibility
+//! - Schema-based serialization with `OpenAPI` 3.x compatibility
 //! - Compact binary format with size optimization
 //! - Zero-copy deserialization where possible
 //! - Support for complex types (arrays, objects, references)
-//! - Built-in formats: UUID, DateTime, Date, IPv4, IPv6, Binary
+//! - Built-in formats: `UUID`, `DateTime`, `Date`, `IPv4`, `IPv6`, `Binary`
 //! - Thread-safe schema registry
 //! - Optional derive macros for automatic implementation
 //!

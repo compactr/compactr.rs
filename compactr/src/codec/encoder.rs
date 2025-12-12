@@ -105,6 +105,7 @@ impl Encoder {
                     ))
                     .into());
                 }
+                #[allow(clippy::cast_possible_truncation)]
                 self.buf.put_i32_le(int_val as i32);
             }
             IntegerFormat::Int64 => {
@@ -240,15 +241,12 @@ impl Encoder {
         items_schema: &SchemaType,
         registry: &SchemaRegistry,
     ) -> Result<()> {
-        let items = match value {
-            Value::Array(items) => items,
-            _ => {
-                return Err(EncodeError::TypeMismatch {
-                    expected: "array".to_owned(),
-                    actual: value_type_name(value),
-                }
-                .into())
+        let Value::Array(items) = value else {
+            return Err(EncodeError::TypeMismatch {
+                expected: "array".to_owned(),
+                actual: value_type_name(value),
             }
+            .into());
         };
 
         // Encode array length as u32
@@ -259,6 +257,7 @@ impl Encoder {
             ))
             .into());
         }
+        #[allow(clippy::cast_possible_truncation)]
         self.buf.put_u32_le(items.len() as u32);
 
         // Encode each item
@@ -275,30 +274,24 @@ impl Encoder {
         properties: &indexmap::IndexMap<String, crate::schema::Property>,
         registry: &SchemaRegistry,
     ) -> Result<()> {
-        let obj = match value {
-            Value::Object(obj) => obj,
-            _ => {
-                return Err(EncodeError::TypeMismatch {
-                    expected: "object".to_owned(),
-                    actual: value_type_name(value),
-                }
-                .into())
+        let Value::Object(obj) = value else {
+            return Err(EncodeError::TypeMismatch {
+                expected: "object".to_owned(),
+                actual: value_type_name(value),
             }
+            .into());
         };
 
         // Encode properties in schema order
         for (prop_name, prop_def) in properties {
-            match obj.get(prop_name) {
-                Some(prop_value) => {
-                    self.encode_with_registry(prop_value, &prop_def.schema_type, registry)?;
+            if let Some(prop_value) = obj.get(prop_name) {
+                self.encode_with_registry(prop_value, &prop_def.schema_type, registry)?;
+            } else {
+                if prop_def.required {
+                    return Err(SchemaError::MissingField(prop_name.clone()).into());
                 }
-                None => {
-                    if prop_def.required {
-                        return Err(SchemaError::MissingField(prop_name.clone()).into());
-                    }
-                    // Encode null for missing optional fields
-                    self.encode_with_registry(&Value::Null, &SchemaType::Null, registry)?;
-                }
+                // Encode null for missing optional fields
+                self.encode_with_registry(&Value::Null, &SchemaType::Null, registry)?;
             }
         }
 
@@ -354,7 +347,6 @@ fn value_type_name(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
 
     #[test]
     fn test_encode_boolean() {

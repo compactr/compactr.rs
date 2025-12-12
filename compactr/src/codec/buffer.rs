@@ -6,6 +6,10 @@ use bytes::{Buf, BufMut, BytesMut};
 /// Encodes a string into the buffer with a 2-byte length prefix.
 ///
 /// Format: 2 bytes (u16 little-endian) length + UTF-8 bytes
+///
+/// # Errors
+///
+/// Returns an error if the string length exceeds `u16::MAX` bytes.
 pub fn encode_string(buf: &mut BytesMut, s: &str) -> Result<(), EncodeError> {
     let bytes = s.as_bytes();
     let len = bytes.len();
@@ -18,6 +22,7 @@ pub fn encode_string(buf: &mut BytesMut, s: &str) -> Result<(), EncodeError> {
         )));
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     buf.put_u16_le(len as u16);
     buf.put_slice(bytes);
     Ok(())
@@ -26,6 +31,12 @@ pub fn encode_string(buf: &mut BytesMut, s: &str) -> Result<(), EncodeError> {
 /// Decodes a string from the buffer.
 ///
 /// Expects: 2 bytes (u16 little-endian) length + UTF-8 bytes
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The buffer has insufficient data
+/// - The data is not valid UTF-8
 pub fn decode_string(buf: &mut impl Buf) -> Result<String, DecodeError> {
     if buf.remaining() < 2 {
         return Err(DecodeError::UnexpectedEof);
@@ -46,6 +57,10 @@ pub fn decode_string(buf: &mut impl Buf) -> Result<String, DecodeError> {
 /// Encodes binary data into the buffer with a 4-byte length prefix.
 ///
 /// Format: 4 bytes (u32 little-endian) length + raw bytes
+///
+/// # Errors
+///
+/// Returns an error if the binary data length exceeds `u32::MAX` bytes.
 pub fn encode_binary(buf: &mut BytesMut, data: &[u8]) -> Result<(), EncodeError> {
     let len = data.len();
 
@@ -57,6 +72,7 @@ pub fn encode_binary(buf: &mut BytesMut, data: &[u8]) -> Result<(), EncodeError>
         )));
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     buf.put_u32_le(len as u32);
     buf.put_slice(data);
     Ok(())
@@ -65,6 +81,10 @@ pub fn encode_binary(buf: &mut BytesMut, data: &[u8]) -> Result<(), EncodeError>
 /// Decodes binary data from the buffer.
 ///
 /// Expects: 4 bytes (u32 little-endian) length + raw bytes
+///
+/// # Errors
+///
+/// Returns an error if the buffer has insufficient data.
 pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
     if buf.remaining() < 4 {
         return Err(DecodeError::UnexpectedEof);

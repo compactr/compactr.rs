@@ -48,7 +48,7 @@ pub enum Value {
     Array(Vec<Value>),
 
     /// Object with string keys and value values
-    /// Uses IndexMap to preserve insertion order
+    /// Uses `IndexMap` to preserve insertion order
     Object(IndexMap<String, Value>),
 
     /// Null value

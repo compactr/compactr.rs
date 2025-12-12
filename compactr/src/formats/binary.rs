@@ -5,11 +5,19 @@ use crate::error::{DecodeError, EncodeError};
 use bytes::{Buf, BytesMut};
 
 /// Encodes binary data with a 4-byte length prefix.
+///
+/// # Errors
+///
+/// Returns an error if the binary data length exceeds `u32::MAX` bytes.
 pub fn encode_binary(buf: &mut BytesMut, data: &[u8]) -> Result<(), EncodeError> {
     encode_bin(buf, data)
 }
 
 /// Decodes binary data from a buffer.
+///
+/// # Errors
+///
+/// Returns an error if the buffer has insufficient data.
 pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
     decode_bin(buf)
 }

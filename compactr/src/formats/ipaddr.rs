@@ -5,12 +5,20 @@ use bytes::{Buf, BufMut, BytesMut};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// Encodes an IPv4 address (4 bytes).
+///
+/// # Errors
+///
+/// This function currently does not return errors, but the signature uses `Result` for consistency.
 pub fn encode_ipv4(buf: &mut BytesMut, addr: &Ipv4Addr) -> Result<(), EncodeError> {
     buf.put_slice(&addr.octets());
     Ok(())
 }
 
 /// Decodes an IPv4 address from 4 bytes.
+///
+/// # Errors
+///
+/// Returns an error if the buffer has insufficient data (less than 4 bytes).
 pub fn decode_ipv4(buf: &mut impl Buf) -> Result<Ipv4Addr, DecodeError> {
     if buf.remaining() < 4 {
         return Err(DecodeError::UnexpectedEof);
@@ -23,12 +31,20 @@ pub fn decode_ipv4(buf: &mut impl Buf) -> Result<Ipv4Addr, DecodeError> {
 }
 
 /// Encodes an IPv6 address (16 bytes).
+///
+/// # Errors
+///
+/// This function currently does not return errors, but the signature uses `Result` for consistency.
 pub fn encode_ipv6(buf: &mut BytesMut, addr: &Ipv6Addr) -> Result<(), EncodeError> {
     buf.put_slice(&addr.octets());
     Ok(())
 }
 
 /// Decodes an IPv6 address from 16 bytes.
+///
+/// # Errors
+///
+/// Returns an error if the buffer has insufficient data (less than 16 bytes).
 pub fn decode_ipv6(buf: &mut impl Buf) -> Result<Ipv6Addr, DecodeError> {
     if buf.remaining() < 16 {
         return Err(DecodeError::UnexpectedEof);
@@ -41,12 +57,20 @@ pub fn decode_ipv6(buf: &mut impl Buf) -> Result<Ipv6Addr, DecodeError> {
 }
 
 /// Parses an IPv4 address from a string.
+///
+/// # Errors
+///
+/// Returns an error if the string is not a valid IPv4 address.
 pub fn parse_ipv4(s: &str) -> Result<Ipv4Addr, EncodeError> {
     s.parse::<Ipv4Addr>()
         .map_err(|e| EncodeError::InvalidFormat(format!("Invalid IPv4 address: {e}")))
 }
 
 /// Parses an IPv6 address from a string.
+///
+/// # Errors
+///
+/// Returns an error if the string is not a valid IPv6 address.
 pub fn parse_ipv6(s: &str) -> Result<Ipv6Addr, EncodeError> {
     s.parse::<Ipv6Addr>()
         .map_err(|e| EncodeError::InvalidFormat(format!("Invalid IPv6 address: {e}")))

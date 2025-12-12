@@ -24,7 +24,7 @@ pub enum SchemaType {
     /// Object with named properties
     Object(IndexMap<String, Property>),
 
-    /// Reference to another schema (e.g., "#/ComponentName")
+    /// Reference to another schema (e.g., `"#/ComponentName"`)
     Reference(String),
 
     /// Null type

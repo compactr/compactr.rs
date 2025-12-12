@@ -8,7 +8,7 @@ use std::sync::{Arc, RwLock};
 /// A thread-safe registry for storing and resolving schemas.
 ///
 /// The registry allows schemas to reference each other by name,
-/// supporting the OpenAPI `$ref` pattern.
+/// supporting the `OpenAPI` `$ref` pattern.
 #[derive(Debug, Clone)]
 pub struct SchemaRegistry {
     schemas: Arc<RwLock<HashMap<String, SchemaType>>>,
@@ -76,7 +76,7 @@ impl SchemaRegistry {
         visited: &mut HashSet<String>,
     ) -> Result<SchemaType> {
         // Parse reference (format: "#/ComponentName")
-        let name = self.parse_reference(reference)?;
+        let name = Self::parse_reference(reference)?;
 
         // Check for circular references
         if !visited.insert(name.clone()) {
@@ -96,7 +96,7 @@ impl SchemaRegistry {
         }
     }
 
-    fn parse_reference(&self, reference: &str) -> Result<String> {
+    fn parse_reference(reference: &str) -> Result<String> {
         // Support both "#/ComponentName" and "ComponentName" formats
         let name = if let Some(stripped) = reference.strip_prefix("#/") {
             stripped

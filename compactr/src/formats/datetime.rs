@@ -1,17 +1,27 @@
-//! DateTime and Date format encoding and decoding.
+//! `DateTime` and `Date` format encoding and decoding.
 
 use crate::error::{DecodeError, EncodeError};
 use bytes::{Buf, BufMut, BytesMut};
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 
-/// Encodes a DateTime as Unix timestamp in milliseconds (8 bytes, i64 little-endian).
+/// Encodes a `DateTime` as Unix timestamp in milliseconds (8 bytes, i64 little-endian).
+///
+/// # Errors
+///
+/// This function currently does not return errors, but the signature uses `Result` for consistency.
 pub fn encode_datetime(buf: &mut BytesMut, dt: &DateTime<Utc>) -> Result<(), EncodeError> {
     let timestamp_ms = dt.timestamp_millis();
     buf.put_i64_le(timestamp_ms);
     Ok(())
 }
 
-/// Decodes a DateTime from Unix timestamp in milliseconds.
+/// Decodes a `DateTime` from Unix timestamp in milliseconds.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The buffer has insufficient data
+/// - The timestamp is invalid or out of range
 pub fn decode_datetime(buf: &mut impl Buf) -> Result<DateTime<Utc>, DecodeError> {
     if buf.remaining() < 8 {
         return Err(DecodeError::UnexpectedEof);
@@ -23,24 +33,38 @@ pub fn decode_datetime(buf: &mut impl Buf) -> Result<DateTime<Utc>, DecodeError>
         .ok_or_else(|| DecodeError::InvalidData(format!("Invalid timestamp: {timestamp_ms}")))
 }
 
-/// Encodes a Date as days since Unix epoch (4 bytes, i32 little-endian).
+/// Encodes a `Date` as days since Unix epoch (4 bytes, i32 little-endian).
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The epoch date cannot be created
+/// - The date is out of the representable range (beyond ±`i32::MAX` days from epoch)
 pub fn encode_date(buf: &mut BytesMut, date: &NaiveDate) -> Result<(), EncodeError> {
     let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
         .ok_or_else(|| EncodeError::InvalidFormat("Failed to create epoch date".to_owned()))?;
 
     let days = date.signed_duration_since(epoch).num_days();
 
-    if days < i32::MIN as i64 || days > i32::MAX as i64 {
+    if days < i64::from(i32::MIN) || days > i64::from(i32::MAX) {
         return Err(EncodeError::InvalidFormat(format!(
             "Date out of range: {days} days from epoch"
         )));
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     buf.put_i32_le(days as i32);
     Ok(())
 }
 
-/// Decodes a Date from days since Unix epoch.
+/// Decodes a `Date` from days since Unix epoch.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The buffer has insufficient data
+/// - The epoch date cannot be created
+/// - The date offset is invalid or out of range
 pub fn decode_date(buf: &mut impl Buf) -> Result<NaiveDate, DecodeError> {
     if buf.remaining() < 4 {
         return Err(DecodeError::UnexpectedEof);
@@ -51,30 +75,38 @@ pub fn decode_date(buf: &mut impl Buf) -> Result<NaiveDate, DecodeError> {
         .ok_or_else(|| DecodeError::InvalidData("Failed to create epoch date".to_owned()))?;
 
     epoch
-        .checked_add_days(chrono::Days::new(days.unsigned_abs() as u64))
-        .or_else(|| epoch.checked_sub_days(chrono::Days::new((-days).unsigned_abs() as u64)))
+        .checked_add_days(chrono::Days::new(u64::from(days.unsigned_abs())))
+        .or_else(|| epoch.checked_sub_days(chrono::Days::new(u64::from((-days).unsigned_abs()))))
         .ok_or_else(|| DecodeError::InvalidData(format!("Invalid date offset: {days} days")))
 }
 
-/// Parses a DateTime from an ISO 8601 string.
+/// Parses a `DateTime` from an ISO 8601 string.
+///
+/// # Errors
+///
+/// Returns an error if the string is not a valid ISO 8601 datetime.
 pub fn parse_datetime(s: &str) -> Result<DateTime<Utc>, EncodeError> {
     s.parse::<DateTime<Utc>>()
         .map_err(|e| EncodeError::InvalidFormat(format!("Invalid datetime: {e}")))
 }
 
-/// Parses a Date from an ISO 8601 date string (YYYY-MM-DD).
+/// Parses a `Date` from an ISO 8601 date string (YYYY-MM-DD).
+///
+/// # Errors
+///
+/// Returns an error if the string is not a valid date in YYYY-MM-DD format.
 pub fn parse_date(s: &str) -> Result<NaiveDate, EncodeError> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d")
         .map_err(|e| EncodeError::InvalidFormat(format!("Invalid date: {e}")))
 }
 
-/// Returns the encoded size of a DateTime (always 8 bytes).
+/// Returns the encoded size of a `DateTime` (always 8 bytes).
 #[must_use]
 pub const fn datetime_size() -> usize {
     8
 }
 
-/// Returns the encoded size of a Date (always 4 bytes).
+/// Returns the encoded size of a `Date` (always 4 bytes).
 #[must_use]
 pub const fn date_size() -> usize {
     4
