@@ -54,7 +54,9 @@ fn test_int32_binary_format() {
 
     // Test max i32 (big-endian)
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Integer(i32::MAX.into()), &schema).unwrap();
+    encoder
+        .encode(&Value::Integer(i32::MAX.into()), &schema)
+        .unwrap();
     let bytes = encoder.finish();
     assert_eq!(bytes.len(), 4);
     assert_eq!(&bytes[..], &[127, 255, 255, 255]);
@@ -130,7 +132,9 @@ fn test_string_binary_format() {
 
     // Test empty string (2 bytes = 0x00 0x00)
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::String("".to_owned()), &schema).unwrap();
+    encoder
+        .encode(&Value::String("".to_owned()), &schema)
+        .unwrap();
     let bytes = encoder.finish();
     assert_eq!(bytes.len(), 2);
     assert_eq!(&bytes[..], &[0, 0]);
@@ -266,7 +270,9 @@ fn test_binary_binary_format() {
     // Test small binary data (4 bytes length + 3 bytes content)
     let data = vec![1, 2, 3];
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Binary(data.clone()), &schema).unwrap();
+    encoder
+        .encode(&Value::Binary(data.clone()), &schema)
+        .unwrap();
     let bytes = encoder.finish();
     assert_eq!(bytes.len(), 7);
     assert_eq!(&bytes[..], &[0, 0, 0, 3, 1, 2, 3]); // length=3 (big-endian u32), data
@@ -298,7 +304,7 @@ fn test_array_binary_format() {
         &bytes[..],
         &[
             4, 0, 0, 0, 1, // size=4, value=1 (big-endian)
-            4, 0, 0, 0, 2  // size=4, value=2 (big-endian)
+            4, 0, 0, 0, 2 // size=4, value=2 (big-endian)
         ]
     );
 }
@@ -325,11 +331,11 @@ fn test_object_binary_format() {
     assert_eq!(
         &bytes[..],
         &[
-            2,          // 2 properties
-            0, 4,       // property 0 (x), size 4
-            1, 4,       // property 1 (y), size 4
+            2, // 2 properties
+            0, 4, // property 0 (x), size 4
+            1, 4, // property 1 (y), size 4
             0, 0, 0, 10, // x = 10 (big-endian)
-            0, 0, 0, 20  // y = 20 (big-endian)
+            0, 0, 0, 20 // y = 20 (big-endian)
         ]
     );
 }
@@ -346,10 +352,7 @@ fn test_deterministic_encoding() {
         Property::required(SchemaType::string_uuid()),
     );
     properties.insert("name".to_owned(), Property::required(SchemaType::string()));
-    properties.insert(
-        "count".to_owned(),
-        Property::required(SchemaType::int32()),
-    );
+    properties.insert("count".to_owned(), Property::required(SchemaType::int32()));
     properties.insert(
         "created".to_owned(),
         Property::required(SchemaType::string_datetime()),
@@ -367,11 +370,15 @@ fn test_deterministic_encoding() {
 
     // Encode multiple times
     let mut encoder1 = Encoder::new();
-    encoder1.encode(&Value::Object(obj.clone()), &schema).unwrap();
+    encoder1
+        .encode(&Value::Object(obj.clone()), &schema)
+        .unwrap();
     let bytes1 = encoder1.finish();
 
     let mut encoder2 = Encoder::new();
-    encoder2.encode(&Value::Object(obj.clone()), &schema).unwrap();
+    encoder2
+        .encode(&Value::Object(obj.clone()), &schema)
+        .unwrap();
     let bytes2 = encoder2.finish();
 
     let mut encoder3 = Encoder::new();

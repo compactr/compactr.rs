@@ -1,5 +1,5 @@
 [workspace]
-members = ["compactr", "compactr-derive"]
+members = ["compactr"]
 resolver = "2"
 
 [workspace.package]

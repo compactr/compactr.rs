@@ -44,6 +44,25 @@ jobs:
           path: target
           key: ${{ runner.os }}-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install compactr.js
+        run: npm install
+
+      - name: Generate test fixtures
+        run: node compactr/tests/fixtures/generate_fixtures.js
+
       - name: Build
         run: cargo build --verbose --all-features
 

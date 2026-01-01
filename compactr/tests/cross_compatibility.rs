@@ -233,7 +233,7 @@ fn test_array_compatibility() {
         &[
             4, 0, 0, 0, 1, // size=4, value=1 (big-endian)
             4, 0, 0, 0, 2, // size=4, value=2 (big-endian)
-            4, 0, 0, 0, 3  // size=4, value=3 (big-endian)
+            4, 0, 0, 0, 3 // size=4, value=3 (big-endian)
         ]
     );
 
@@ -279,11 +279,11 @@ fn test_object_compatibility() {
     assert_eq!(
         rust_bytes.as_ref(),
         &[
-            2,           // 2 properties
-            0, 4,        // property 0 (x), size 4
-            1, 4,        // property 1 (y), size 4
+            2, // 2 properties
+            0, 4, // property 0 (x), size 4
+            1, 4, // property 1 (y), size 4
             0, 0, 0, 10, // x = 10 (big-endian)
-            0, 0, 0, 20  // y = 20 (big-endian)
+            0, 0, 0, 20 // y = 20 (big-endian)
         ]
     );
 
@@ -321,10 +321,7 @@ fn test_user_object_compatibility() {
         "id".to_owned(),
         Value::Uuid(Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap()),
     );
-    obj.insert(
-        "name".to_owned(),
-        Value::String("Alice Johnson".to_owned()),
-    );
+    obj.insert("name".to_owned(), Value::String("Alice Johnson".to_owned()));
     obj.insert(
         "email".to_owned(),
         Value::String("alice@example.com".to_owned()),
@@ -400,10 +397,10 @@ fn test_validate_all_fixtures() {
     }
 
     let manifest_path = Path::new("compactr/tests/fixtures/manifest.json");
-    let manifest_data = std::fs::read_to_string(manifest_path)
-        .expect("Failed to read manifest.json");
-    let manifest: JsonValue = serde_json::from_str(&manifest_data)
-        .expect("Failed to parse manifest.json");
+    let manifest_data =
+        std::fs::read_to_string(manifest_path).expect("Failed to read manifest.json");
+    let manifest: JsonValue =
+        serde_json::from_str(&manifest_data).expect("Failed to parse manifest.json");
 
     let fixtures = manifest["fixtures"]
         .as_array()
@@ -424,7 +421,12 @@ fn test_validate_all_fixtures() {
                 println!("✓ {}", filename);
                 passed += 1;
             } else {
-                println!("✗ {} (expected {} bytes, got {})", filename, expected_size, data.len());
+                println!(
+                    "✗ {} (expected {} bytes, got {})",
+                    filename,
+                    expected_size,
+                    data.len()
+                );
                 failed += 1;
             }
         } else {

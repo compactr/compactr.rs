@@ -29,6 +29,9 @@ fn test_simple_int32_object() {
     println!("Rust bytes: {:?}", bytes.as_ref());
     println!("Expected:   {:?}", expected);
 
-    assert_eq!(bytes.as_ref(), expected.as_slice(),
-        "Rust encoding should match compactr.js format");
+    assert_eq!(
+        bytes.as_ref(),
+        expected.as_slice(),
+        "Rust encoding should match compactr.js format"
+    );
 }

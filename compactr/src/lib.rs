@@ -13,7 +13,6 @@
 //! - Support for complex types (arrays, objects, references)
 //! - Built-in formats: `UUID`, `DateTime`, `Date`, `IPv4`, `IPv6`, `Binary`
 //! - Thread-safe schema registry
-//! - Optional derive macros for automatic implementation
 //!
 //! ## Quick Start
 //!
@@ -50,10 +49,6 @@ pub mod formats;
 pub mod schema;
 pub mod value;
 
-#[cfg(feature = "derive")]
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-pub use compactr_derive::*;
-
 // Re-export commonly used types
 pub use codec::{Decode, Decoder, Encode, Encoder};
 pub use error::{DecodeError, EncodeError, Result, SchemaError};
@@ -68,8 +63,4 @@ pub mod prelude {
         IntegerFormat, NumberFormat, Property, SchemaRegistry, SchemaType, StringFormat,
     };
     pub use crate::value::Value;
-
-    #[cfg(feature = "derive")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
-    pub use compactr_derive::*;
 }

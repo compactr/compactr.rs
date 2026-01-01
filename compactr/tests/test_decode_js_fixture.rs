@@ -17,7 +17,13 @@ fn test_decode_int32_42() {
     let bytes = std::fs::read(fixture_path).expect("Failed to read fixture");
 
     println!("Fixture bytes: {:?}", bytes);
-    println!("Fixture hex:   {}", bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+    println!(
+        "Fixture hex:   {}",
+        bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
+    );
 
     // Create schema: {value: int32}
     let mut properties = IndexMap::new();

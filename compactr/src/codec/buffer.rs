@@ -26,9 +26,9 @@ pub fn encode_string(buf: &mut BytesMut, s: &str) -> Result<(), EncodeError> {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    buf.put_u16(byte_len as u16);  // Big-endian length prefix
+    buf.put_u16(byte_len as u16); // Big-endian length prefix
 
-    buf.put_slice(utf8_bytes);  // Raw UTF-8 bytes
+    buf.put_slice(utf8_bytes); // Raw UTF-8 bytes
 
     Ok(())
 }
@@ -49,7 +49,7 @@ pub fn decode_string(buf: &mut impl Buf) -> Result<String, DecodeError> {
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let len = buf.get_u16() as usize;  // Big-endian length prefix
+    let len = buf.get_u16() as usize; // Big-endian length prefix
 
     if len == 0 {
         return Ok(String::new());
@@ -64,9 +64,7 @@ pub fn decode_string(buf: &mut impl Buf) -> Result<String, DecodeError> {
     buf.copy_to_slice(&mut bytes);
 
     // Validate and convert UTF-8 to String
-    String::from_utf8(bytes).map_err(|e|
-        DecodeError::InvalidData(format!("Invalid UTF-8: {}", e))
-    )
+    String::from_utf8(bytes).map_err(|e| DecodeError::InvalidData(format!("Invalid UTF-8: {e}")))
 }
 
 /// Encodes binary data into the buffer with a 4-byte length prefix.
@@ -123,7 +121,7 @@ pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
 /// - Non-empty: 2 byte length + UTF-8 byte count
 #[must_use]
 pub fn string_size(s: &str) -> usize {
-    2 + s.len()  // 2-byte prefix + UTF-8 bytes (s.len() returns byte count)
+    2 + s.len() // 2-byte prefix + UTF-8 bytes (s.len() returns byte count)
 }
 
 /// Returns the encoded size of binary data (4 bytes length + raw bytes).

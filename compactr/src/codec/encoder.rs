@@ -267,8 +267,7 @@ impl Encoder {
             // Encode size prefix (variable length)
             if elem_size > 255 {
                 return Err(EncodeError::InvalidFormat(format!(
-                    "Array element too large: {} bytes (max 255)",
-                    elem_size
+                    "Array element too large: {elem_size} bytes (max 255)"
                 ))
                 .into());
             }
@@ -345,8 +344,7 @@ impl Encoder {
             let size = prop_sizes[i];
             if size > 255 {
                 return Err(EncodeError::InvalidFormat(format!(
-                    "Property value too large: {} bytes (max 255)",
-                    size
+                    "Property value too large: {size} bytes (max 255)"
                 ))
                 .into());
             }

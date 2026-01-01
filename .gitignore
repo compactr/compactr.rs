@@ -26,4 +26,12 @@ Cargo.lock
 *.profraw
 *.profdata
 
+# Node.js (for cross-compatibility testing)
+node_modules/
+package-lock.json
+
+# Generated test fixtures (from compactr.js)
+compactr/tests/fixtures/*.bin
+compactr/tests/fixtures/manifest.json
+
 ARCHITECTURE.md
