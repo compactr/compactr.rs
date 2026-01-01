@@ -1,0 +1,17 @@
+{
+  "name": "compactr-rs-testing",
+  "version": "0.1.0",
+  "description": "JavaScript dependencies for cross-compatibility testing with compactr.rs",
+  "private": true,
+  "scripts": {
+    "generate-fixtures": "node compactr/tests/fixtures/generate_fixtures.js",
+    "test": "npm run generate-fixtures && cargo test"
+  },
+  "dependencies": {
+    "compactr": "^3.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

@@ -1,0 +1,16 @@
+# Clippy configuration for Compactr
+
+# Deny certain lints
+# (configured via attributes in lib.rs and main crate files)
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 25
+
+# Maximum number of single char bindings in scope
+single-char-binding-names-threshold = 4
+
+# Maximum number of bool parameters in function
+too-many-arguments-threshold = 7
+
+# Type complexity threshold
+type-complexity-threshold = 250
