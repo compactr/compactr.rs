@@ -106,10 +106,10 @@ impl Encoder {
                     .into());
                 }
                 #[allow(clippy::cast_possible_truncation)]
-                self.buf.put_i32_le(int_val as i32);
+                self.buf.put_i32(int_val as i32); // Big-endian
             }
             IntegerFormat::Int64 => {
-                self.buf.put_i64_le(int_val);
+                self.buf.put_i64(int_val); // Big-endian
             }
         }
 
@@ -120,12 +120,12 @@ impl Encoder {
         match format {
             NumberFormat::Float => match value {
                 Value::Float(f) => {
-                    self.buf.put_f32_le(*f);
+                    self.buf.put_f32(*f); // Big-endian
                     Ok(())
                 }
                 Value::Double(d) => {
                     #[allow(clippy::cast_possible_truncation)]
-                    self.buf.put_f32_le(*d as f32);
+                    self.buf.put_f32(*d as f32); // Big-endian
                     Ok(())
                 }
                 _ => Err(EncodeError::TypeMismatch {
@@ -136,11 +136,11 @@ impl Encoder {
             },
             NumberFormat::Double => match value {
                 Value::Double(d) => {
-                    self.buf.put_f64_le(*d);
+                    self.buf.put_f64(*d); // Big-endian
                     Ok(())
                 }
                 Value::Float(f) => {
-                    self.buf.put_f64_le(f64::from(*f));
+                    self.buf.put_f64(f64::from(*f)); // Big-endian
                     Ok(())
                 }
                 _ => Err(EncodeError::TypeMismatch {
@@ -249,20 +249,34 @@ impl Encoder {
             .into());
         };
 
-        // Encode array length as u32
-        if items.len() > u32::MAX as usize {
-            return Err(EncodeError::InvalidFormat(format!(
-                "Array too long: {} items",
-                items.len()
-            ))
-            .into());
-        }
-        #[allow(clippy::cast_possible_truncation)]
-        self.buf.put_u32_le(items.len() as u32);
+        // Compactr.js format: Each array element is prefixed with its size
+        // No overall array length - elements are self-describing
+        //
+        // Format: [size1, elem1, size2, elem2, ...]
+        // where size is a variable-length encoding
 
-        // Encode each item
         for item in items {
-            self.encode_with_registry(item, items_schema, registry)?;
+            // Encode element to temp buffer to measure size
+            let mut temp_buf = BytesMut::new();
+            let mut temp_encoder = Encoder::with_buf(temp_buf);
+            temp_encoder.encode_with_registry(item, items_schema, registry)?;
+            temp_buf = temp_encoder.buf;
+
+            let elem_size = temp_buf.len();
+
+            // Encode size prefix (variable length)
+            if elem_size > 255 {
+                return Err(EncodeError::InvalidFormat(format!(
+                    "Array element too large: {} bytes (max 255)",
+                    elem_size
+                ))
+                .into());
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            self.buf.put_u8(elem_size as u8);
+
+            // Append element data
+            self.buf.extend_from_slice(&temp_buf);
         }
 
         Ok(())
@@ -282,20 +296,73 @@ impl Encoder {
             .into());
         };
 
-        // Encode properties in schema order
-        for (prop_name, prop_def) in properties {
+        // Compactr.js format: Header + Content structure
+        // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size, ...]
+        // Content: [prop0_value, prop1_value, ...]
+
+        // Build list of present properties with their indices (alphabetical order)
+        let mut present_props: Vec<(usize, &String, &crate::schema::Property, &Value)> = Vec::new();
+
+        for (idx, (prop_name, prop_def)) in properties.iter().enumerate() {
             if let Some(prop_value) = obj.get(prop_name) {
-                self.encode_with_registry(prop_value, &prop_def.schema_type, registry)?;
-            } else {
-                if prop_def.required {
-                    return Err(SchemaError::MissingField(prop_name.clone()).into());
-                }
-                // Encode null for missing optional fields
-                self.encode_with_registry(&Value::Null, &SchemaType::Null, registry)?;
+                present_props.push((idx, prop_name, prop_def, prop_value));
+            } else if prop_def.required {
+                return Err(SchemaError::MissingField(prop_name.clone()).into());
             }
+            // Optional properties that are missing are simply omitted
         }
 
+        // Encode header
+        // First byte: number of properties present
+        if present_props.len() > 255 {
+            return Err(EncodeError::InvalidFormat(format!(
+                "Too many properties: {} (max 255)",
+                present_props.len()
+            ))
+            .into());
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        self.buf.put_u8(present_props.len() as u8);
+
+        // Encode property values to a temporary buffer to calculate sizes
+        let mut content_buf = BytesMut::new();
+        let mut prop_sizes: Vec<usize> = Vec::new();
+
+        for (_idx, _prop_name, prop_def, prop_value) in &present_props {
+            let before_len = content_buf.len();
+            let mut temp_encoder = Encoder::with_buf(content_buf);
+            temp_encoder.encode_with_registry(prop_value, &prop_def.schema_type, registry)?;
+            content_buf = temp_encoder.buf;
+            let after_len = content_buf.len();
+            prop_sizes.push(after_len - before_len);
+        }
+
+        // Encode header: property indices and sizes
+        for (i, (idx, _prop_name, _prop_def, _prop_value)) in present_props.iter().enumerate() {
+            #[allow(clippy::cast_possible_truncation)]
+            self.buf.put_u8(*idx as u8); // Property index
+
+            let size = prop_sizes[i];
+            if size > 255 {
+                return Err(EncodeError::InvalidFormat(format!(
+                    "Property value too large: {} bytes (max 255)",
+                    size
+                ))
+                .into());
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            self.buf.put_u8(size as u8); // Property size
+        }
+
+        // Append content
+        self.buf.extend_from_slice(&content_buf);
+
         Ok(())
+    }
+
+    // Helper to create encoder with existing buffer
+    fn with_buf(buf: BytesMut) -> Self {
+        Self { buf }
     }
 
     fn encode_null(&mut self, value: &Value) -> Result<()> {
@@ -379,7 +446,7 @@ mod tests {
         let mut enc = Encoder::new();
         enc.encode(&Value::String("hello".to_owned()), &SchemaType::string())
             .unwrap();
-        // 2 bytes length + 5 bytes content
+        // UTF-8: 2 byte length + 5 bytes = 7 bytes
         assert_eq!(enc.as_bytes().len(), 7);
     }
 
@@ -393,7 +460,7 @@ mod tests {
         ]);
         enc.encode(&arr, &SchemaType::array(SchemaType::int32()))
             .unwrap();
-        // 4 bytes length + 3 * 4 bytes items
-        assert_eq!(enc.as_bytes().len(), 16);
+        // Size-prefixed format: 3 * (1 byte size + 4 bytes int32) = 15 bytes
+        assert_eq!(enc.as_bytes().len(), 15);
     }
 }

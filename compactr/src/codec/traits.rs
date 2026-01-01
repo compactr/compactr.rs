@@ -56,7 +56,7 @@ impl Decode for bool {
 
 impl Encode for i32 {
     fn encode(&self, buf: &mut BytesMut) -> Result<(), EncodeError> {
-        buf.put_i32_le(*self);
+        buf.put_i32(*self); // Big-endian
         Ok(())
     }
 
@@ -70,13 +70,13 @@ impl Decode for i32 {
         if buf.remaining() < 4 {
             return Err(DecodeError::UnexpectedEof);
         }
-        Ok(buf.get_i32_le())
+        Ok(buf.get_i32()) // Big-endian
     }
 }
 
 impl Encode for i64 {
     fn encode(&self, buf: &mut BytesMut) -> Result<(), EncodeError> {
-        buf.put_i64_le(*self);
+        buf.put_i64(*self); // Big-endian
         Ok(())
     }
 
@@ -90,13 +90,13 @@ impl Decode for i64 {
         if buf.remaining() < 8 {
             return Err(DecodeError::UnexpectedEof);
         }
-        Ok(buf.get_i64_le())
+        Ok(buf.get_i64()) // Big-endian
     }
 }
 
 impl Encode for f32 {
     fn encode(&self, buf: &mut BytesMut) -> Result<(), EncodeError> {
-        buf.put_f32_le(*self);
+        buf.put_f32(*self); // Big-endian
         Ok(())
     }
 
@@ -110,13 +110,13 @@ impl Decode for f32 {
         if buf.remaining() < 4 {
             return Err(DecodeError::UnexpectedEof);
         }
-        Ok(buf.get_f32_le())
+        Ok(buf.get_f32()) // Big-endian
     }
 }
 
 impl Encode for f64 {
     fn encode(&self, buf: &mut BytesMut) -> Result<(), EncodeError> {
-        buf.put_f64_le(*self);
+        buf.put_f64(*self); // Big-endian
         Ok(())
     }
 
@@ -130,6 +130,6 @@ impl Decode for f64 {
         if buf.remaining() < 8 {
             return Err(DecodeError::UnexpectedEof);
         }
-        Ok(buf.get_f64_le())
+        Ok(buf.get_f64()) // Big-endian
     }
 }

@@ -4,14 +4,14 @@ use crate::error::{DecodeError, EncodeError};
 use bytes::{Buf, BufMut, BytesMut};
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 
-/// Encodes a `DateTime` as Unix timestamp in milliseconds (8 bytes, i64 little-endian).
+/// Encodes a `DateTime` as Unix timestamp in milliseconds (8 bytes, i64 big-endian).
 ///
 /// # Errors
 ///
 /// This function currently does not return errors, but the signature uses `Result` for consistency.
 pub fn encode_datetime(buf: &mut BytesMut, dt: &DateTime<Utc>) -> Result<(), EncodeError> {
     let timestamp_ms = dt.timestamp_millis();
-    buf.put_i64_le(timestamp_ms);
+    buf.put_i64(timestamp_ms); // Big-endian
     Ok(())
 }
 
@@ -27,13 +27,13 @@ pub fn decode_datetime(buf: &mut impl Buf) -> Result<DateTime<Utc>, DecodeError>
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let timestamp_ms = buf.get_i64_le();
+    let timestamp_ms = buf.get_i64(); // Big-endian
     Utc.timestamp_millis_opt(timestamp_ms)
         .single()
         .ok_or_else(|| DecodeError::InvalidData(format!("Invalid timestamp: {timestamp_ms}")))
 }
 
-/// Encodes a `Date` as days since Unix epoch (4 bytes, i32 little-endian).
+/// Encodes a `Date` as days since Unix epoch (4 bytes, i32 big-endian).
 ///
 /// # Errors
 ///
@@ -53,7 +53,7 @@ pub fn encode_date(buf: &mut BytesMut, date: &NaiveDate) -> Result<(), EncodeErr
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    buf.put_i32_le(days as i32);
+    buf.put_i32(days as i32); // Big-endian
     Ok(())
 }
 
@@ -70,7 +70,7 @@ pub fn decode_date(buf: &mut impl Buf) -> Result<NaiveDate, DecodeError> {
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let days = buf.get_i32_le();
+    let days = buf.get_i32(); // Big-endian
     let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
         .ok_or_else(|| DecodeError::InvalidData("Failed to create epoch date".to_owned()))?;
 

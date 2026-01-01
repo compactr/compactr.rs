@@ -1,7 +1,7 @@
 //! Decoder for converting binary format to values based on schemas.
 
 use crate::codec::buffer::{decode_binary, decode_string};
-use crate::error::{DecodeError, Result};
+use crate::error::{DecodeError, Result, SchemaError};
 use crate::formats::{datetime, ipaddr, uuid};
 use crate::schema::{IntegerFormat, NumberFormat, SchemaRegistry, SchemaType, StringFormat};
 use crate::value::Value;
@@ -72,13 +72,13 @@ impl Decoder {
                 if buf.remaining() < 4 {
                     return Err(DecodeError::UnexpectedEof.into());
                 }
-                i64::from(buf.get_i32_le())
+                i64::from(buf.get_i32()) // Big-endian
             }
             IntegerFormat::Int64 => {
                 if buf.remaining() < 8 {
                     return Err(DecodeError::UnexpectedEof.into());
                 }
-                buf.get_i64_le()
+                buf.get_i64() // Big-endian
             }
         };
 
@@ -91,13 +91,13 @@ impl Decoder {
                 if buf.remaining() < 4 {
                     return Err(DecodeError::UnexpectedEof.into());
                 }
-                Ok(Value::Float(buf.get_f32_le()))
+                Ok(Value::Float(buf.get_f32())) // Big-endian
             }
             NumberFormat::Double => {
                 if buf.remaining() < 8 {
                     return Err(DecodeError::UnexpectedEof.into());
                 }
-                Ok(Value::Double(buf.get_f64_le()))
+                Ok(Value::Double(buf.get_f64())) // Big-endian
             }
         }
     }
@@ -140,16 +140,28 @@ impl Decoder {
         items_schema: &SchemaType,
         registry: &SchemaRegistry,
     ) -> Result<Value> {
-        // Decode array length
-        if buf.remaining() < 4 {
-            return Err(DecodeError::UnexpectedEof.into());
-        }
-        let len = buf.get_u32_le() as usize;
+        // Compactr.js format: Each array element is prefixed with its size
+        // No overall array length - read elements until buffer is exhausted
+        //
+        // Format: [size1, elem1, size2, elem2, ...]
+        // where size is a 1-byte value
 
-        // Decode items
-        let mut items = Vec::with_capacity(len);
-        for _ in 0..len {
-            let item = Self::decode_with_registry(buf, items_schema, registry)?;
+        let mut items = Vec::new();
+
+        while buf.has_remaining() {
+            // Read element size
+            let elem_size = buf.get_u8() as usize;
+
+            // Read element data
+            if buf.remaining() < elem_size {
+                return Err(DecodeError::UnexpectedEof.into());
+            }
+
+            let mut elem_bytes = vec![0u8; elem_size];
+            buf.copy_to_slice(&mut elem_bytes);
+            let mut elem_buf = &elem_bytes[..];
+
+            let item = Self::decode_with_registry(&mut elem_buf, items_schema, registry)?;
             items.push(item);
         }
 
@@ -161,18 +173,68 @@ impl Decoder {
         properties: &IndexMap<String, crate::schema::Property>,
         registry: &SchemaRegistry,
     ) -> Result<Value> {
+        // Compactr.js format: Header + Content structure
+        // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size, ...]
+        // Content: [prop0_value, prop1_value, ...]
+
+        if !buf.has_remaining() {
+            return Err(DecodeError::UnexpectedEof.into());
+        }
+
+        // Read number of properties present
+        let num_props = buf.get_u8() as usize;
+
+        // Read header: property indices and sizes
+        let mut prop_info: Vec<(usize, usize)> = Vec::with_capacity(num_props);
+        for _ in 0..num_props {
+            if buf.remaining() < 2 {
+                return Err(DecodeError::UnexpectedEof.into());
+            }
+            let prop_idx = buf.get_u8() as usize;
+            let prop_size = buf.get_u8() as usize;
+            prop_info.push((prop_idx, prop_size));
+        }
+
+        // Convert properties IndexMap to Vec for index-based access
+        let props_vec: Vec<(String, crate::schema::Property)> = properties
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        // Decode content: property values
         let mut obj = IndexMap::new();
-
-        // Decode properties in schema order
-        for (prop_name, prop_def) in properties {
-            let prop_value = Self::decode_with_registry(buf, &prop_def.schema_type, registry)?;
-
-            // Skip null values for optional fields
-            if !prop_def.required && prop_value.is_null() {
-                continue;
+        for (prop_idx, prop_size) in prop_info {
+            if prop_idx >= props_vec.len() {
+                return Err(DecodeError::InvalidData(format!(
+                    "Property index {} out of range (max {})",
+                    prop_idx,
+                    props_vec.len() - 1
+                ))
+                .into());
             }
 
+            let (prop_name, prop_def) = &props_vec[prop_idx];
+
+            // Read exactly prop_size bytes for this property
+            if buf.remaining() < prop_size {
+                return Err(DecodeError::UnexpectedEof.into());
+            }
+
+            let mut prop_bytes = vec![0u8; prop_size];
+            buf.copy_to_slice(&mut prop_bytes);
+            let mut prop_buf = &prop_bytes[..];
+
+            let prop_value =
+                Self::decode_with_registry(&mut prop_buf, &prop_def.schema_type, registry)?;
+
             obj.insert(prop_name.clone(), prop_value);
+        }
+
+        // Check for missing required fields
+        for (prop_name, prop_def) in properties {
+            if prop_def.required && !obj.contains_key(prop_name) {
+                return Err(SchemaError::MissingField(prop_name.clone()).into());
+            }
         }
 
         Ok(Value::Object(obj))

@@ -3,34 +3,41 @@
 use crate::error::{DecodeError, EncodeError};
 use bytes::{Buf, BufMut, BytesMut};
 
-/// Encodes a string into the buffer with a 2-byte length prefix.
+/// Encodes a string into the buffer with UTF-8 encoding.
 ///
-/// Format: 2 bytes (u16 little-endian) length + UTF-8 bytes
+/// Format: 2-byte length (u16 BE) + UTF-8 encoded bytes
+/// - Empty string: `0x00 0x00`
+/// - Non-empty: 2-byte length + UTF-8 bytes (variable length per character)
 ///
 /// # Errors
 ///
-/// Returns an error if the string length exceeds `u16::MAX` bytes.
+/// Returns an error if the string is too long to encode.
 pub fn encode_string(buf: &mut BytesMut, s: &str) -> Result<(), EncodeError> {
-    let bytes = s.as_bytes();
-    let len = bytes.len();
+    // UTF-8 encoding: Rust strings are already UTF-8
+    let utf8_bytes = s.as_bytes();
+    let byte_len = utf8_bytes.len();
 
-    if len > u16::MAX as usize {
+    if byte_len > u16::MAX as usize {
         return Err(EncodeError::InvalidFormat(format!(
             "String too long: {} bytes (max {})",
-            len,
+            byte_len,
             u16::MAX
         )));
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    buf.put_u16_le(len as u16);
-    buf.put_slice(bytes);
+    buf.put_u16(byte_len as u16);  // Big-endian length prefix
+
+    buf.put_slice(utf8_bytes);  // Raw UTF-8 bytes
+
     Ok(())
 }
 
 /// Decodes a string from the buffer.
 ///
-/// Expects: 2 bytes (u16 little-endian) length + UTF-8 bytes
+/// Expects: 2-byte length (u16 BE) + UTF-8 encoded bytes
+/// - `0x00 0x00` → empty string
+/// - Otherwise: 2-byte length + UTF-8 bytes
 ///
 /// # Errors
 ///
@@ -42,21 +49,29 @@ pub fn decode_string(buf: &mut impl Buf) -> Result<String, DecodeError> {
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let len = buf.get_u16_le() as usize;
+    let len = buf.get_u16() as usize;  // Big-endian length prefix
+
+    if len == 0 {
+        return Ok(String::new());
+    }
 
     if buf.remaining() < len {
         return Err(DecodeError::UnexpectedEof);
     }
 
+    // Read raw UTF-8 bytes
     let mut bytes = vec![0u8; len];
     buf.copy_to_slice(&mut bytes);
 
-    String::from_utf8(bytes).map_err(DecodeError::String)
+    // Validate and convert UTF-8 to String
+    String::from_utf8(bytes).map_err(|e|
+        DecodeError::InvalidData(format!("Invalid UTF-8: {}", e))
+    )
 }
 
 /// Encodes binary data into the buffer with a 4-byte length prefix.
 ///
-/// Format: 4 bytes (u32 little-endian) length + raw bytes
+/// Format: 4 bytes (u32 big-endian) length + raw bytes
 ///
 /// # Errors
 ///
@@ -73,14 +88,14 @@ pub fn encode_binary(buf: &mut BytesMut, data: &[u8]) -> Result<(), EncodeError>
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    buf.put_u32_le(len as u32);
+    buf.put_u32(len as u32); // Big-endian
     buf.put_slice(data);
     Ok(())
 }
 
 /// Decodes binary data from the buffer.
 ///
-/// Expects: 4 bytes (u32 little-endian) length + raw bytes
+/// Expects: 4 bytes (u32 big-endian) length + raw bytes
 ///
 /// # Errors
 ///
@@ -90,7 +105,7 @@ pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let len = buf.get_u32_le() as usize;
+    let len = buf.get_u32() as usize; // Big-endian
 
     if buf.remaining() < len {
         return Err(DecodeError::UnexpectedEof);
@@ -102,10 +117,13 @@ pub fn decode_binary(buf: &mut impl Buf) -> Result<Vec<u8>, DecodeError> {
     Ok(bytes)
 }
 
-/// Returns the encoded size of a string (2 bytes length + UTF-8 bytes).
+/// Returns the encoded size of a string (2 byte length + UTF-8 bytes).
+///
+/// - Empty string: 2 bytes (0x00 0x00)
+/// - Non-empty: 2 byte length + UTF-8 byte count
 #[must_use]
 pub fn string_size(s: &str) -> usize {
-    2 + s.len()
+    2 + s.len()  // 2-byte prefix + UTF-8 bytes (s.len() returns byte count)
 }
 
 /// Returns the encoded size of binary data (4 bytes length + raw bytes).
