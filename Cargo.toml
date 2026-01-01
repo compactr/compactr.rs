@@ -32,7 +32,7 @@ quote = "1.0"
 proc-macro2 = "1.0"
 
 # Dev dependencies
-criterion = "0.5"
+criterion = "0.8"
 proptest = "1.4"
 
 [profile.release]
