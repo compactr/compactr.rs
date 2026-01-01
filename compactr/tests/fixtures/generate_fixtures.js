@@ -34,9 +34,8 @@ const fixtures = [];
 function generateFixture(name, schemaObj, value, description) {
   try {
     const s = schema(schemaObj);
-    const encoded = s.write(value);
-    // Get the full buffer (header + content)
-    const buffer = encoded.buffer();
+    // In compactr 3.x, write() returns a Buffer directly
+    const buffer = s.write(value);
     const filename = `${name}.bin`;
     const filepath = path.join(fixturesDir, filename);
 
@@ -89,176 +88,168 @@ generateFixture('int32_max',
   'Object with int32::MAX');
 
 generateFixture('int64_0',
-  { type: 'integer', format: 'int64' },
-  0,
-  '8 bytes little-endian');
+  { value: { type: 'int64' } },
+  { value: 0 },
+  'Object with int64 = 0');
 
 generateFixture('int64_42',
-  { type: 'integer', format: 'int64' },
-  42,
-  '8 bytes little-endian');
+  { value: { type: 'int64' } },
+  { value: 42 },
+  'Object with int64 = 42');
 
 generateFixture('int64_max_safe',
-  { type: 'integer', format: 'int64' },
-  9007199254740991, // Max safe integer in JS
-  '8 bytes little-endian');
+  { value: { type: 'int64' } },
+  { value: 9007199254740991 }, // Max safe integer in JS
+  'Object with int64::MAX_SAFE');
 
 generateFixture('float_0',
-  { type: 'number', format: 'float' },
-  0.0,
-  '4 bytes IEEE 754 little-endian');
+  { value: { type: 'float' } },
+  { value: 0.0 },
+  'Object with float = 0.0');
 
 generateFixture('float_1',
-  { type: 'number', format: 'float' },
-  1.0,
-  '4 bytes IEEE 754 little-endian');
+  { value: { type: 'float' } },
+  { value: 1.0 },
+  'Object with float = 1.0');
 
 generateFixture('float_pi',
-  { type: 'number', format: 'float' },
-  3.14,
-  '4 bytes IEEE 754 little-endian');
+  { value: { type: 'float' } },
+  { value: 3.14 },
+  'Object with float = 3.14');
 
 generateFixture('double_0',
-  { type: 'number', format: 'double' },
-  0.0,
-  '8 bytes IEEE 754 little-endian');
+  { value: { type: 'double' } },
+  { value: 0.0 },
+  'Object with double = 0.0');
 
 generateFixture('double_1',
-  { type: 'number', format: 'double' },
-  1.0,
-  '8 bytes IEEE 754 little-endian');
+  { value: { type: 'double' } },
+  { value: 1.0 },
+  'Object with double = 1.0');
 
 generateFixture('double_pi',
-  { type: 'number', format: 'double' },
-  Math.PI,
-  '8 bytes IEEE 754 little-endian');
+  { value: { type: 'double' } },
+  { value: Math.PI },
+  'Object with double = Math.PI');
 
 console.log('\nStrings:');
 generateFixture('string_empty',
-  { type: 'string' },
-  '',
-  '2 bytes length (0)');
+  { value: { type: 'string' } },
+  { value: '' },
+  'Object with empty string');
 
 generateFixture('string_a',
-  { type: 'string' },
-  'A',
-  '2 bytes length + 1 byte');
+  { value: { type: 'string' } },
+  { value: 'A' },
+  'Object with string "A"');
 
 generateFixture('string_hello',
-  { type: 'string' },
-  'Hello',
-  '2 bytes length + 5 bytes');
+  { value: { type: 'string' } },
+  { value: 'Hello' },
+  'Object with string "Hello"');
 
 generateFixture('string_unicode',
-  { type: 'string' },
-  'Hello 🦀',
-  '2 bytes length + UTF-8 bytes');
+  { value: { type: 'string' } },
+  { value: 'Hello 🦀' },
+  'Object with Unicode string');
 
 // 2. Special Formats
 console.log('\nSpecial Formats:');
 generateFixture('uuid_standard',
-  { type: 'string', format: 'uuid' },
-  '550e8400-e29b-41d4-a716-446655440000',
-  '16 bytes raw UUID');
+  { value: { type: 'uuid' } },
+  { value: '550e8400-e29b-41d4-a716-446655440000' },
+  'Object with standard UUID');
 
 generateFixture('uuid_zeroes',
-  { type: 'string', format: 'uuid' },
-  '00000000-0000-0000-0000-000000000000',
-  '16 bytes raw UUID');
+  { value: { type: 'uuid' } },
+  { value: '00000000-0000-0000-0000-000000000000' },
+  'Object with zero UUID');
 
 generateFixture('datetime_epoch',
-  { type: 'string', format: 'date-time' },
-  '1970-01-01T00:00:00.000Z',
-  '8 bytes i64 milliseconds from epoch');
+  { value: { type: 'date-time' } },
+  { value: '1970-01-01T00:00:00.000Z' },
+  'Object with epoch datetime');
 
 generateFixture('datetime_2021',
-  { type: 'string', format: 'date-time' },
-  '2021-01-01T00:00:00.000Z',
-  '8 bytes i64 milliseconds from epoch');
+  { value: { type: 'date-time' } },
+  { value: '2021-01-01T00:00:00.000Z' },
+  'Object with datetime 2021');
 
 generateFixture('datetime_2024',
-  { type: 'string', format: 'date-time' },
-  '2024-01-15T10:30:00.000Z',
-  '8 bytes i64 milliseconds from epoch');
+  { value: { type: 'date-time' } },
+  { value: '2024-01-15T10:30:00.000Z' },
+  'Object with datetime 2024');
 
 generateFixture('date_epoch',
-  { type: 'string', format: 'date' },
-  '1970-01-01',
-  '4 bytes i32 days from epoch');
+  { value: { type: 'date' } },
+  { value: '1970-01-01' },
+  'Object with epoch date');
 
 generateFixture('date_2021',
-  { type: 'string', format: 'date' },
-  '2021-01-01',
-  '4 bytes i32 days from epoch');
+  { value: { type: 'date' } },
+  { value: '2021-01-01' },
+  'Object with date 2021');
 
 generateFixture('ipv4_localhost',
-  { type: 'string', format: 'ipv4' },
-  '127.0.0.1',
-  '4 bytes');
+  { value: { type: 'ipv4' } },
+  { value: '127.0.0.1' },
+  'Object with IPv4 localhost');
 
 generateFixture('ipv4_192_168_1_1',
-  { type: 'string', format: 'ipv4' },
-  '192.168.1.1',
-  '4 bytes');
+  { value: { type: 'ipv4' } },
+  { value: '192.168.1.1' },
+  'Object with IPv4 192.168.1.1');
 
 generateFixture('ipv6_localhost',
-  { type: 'string', format: 'ipv6' },
-  '::1',
-  '16 bytes');
+  { value: { type: 'ipv6' } },
+  { value: '::1' },
+  'Object with IPv6 localhost');
 
 generateFixture('ipv6_standard',
-  { type: 'string', format: 'ipv6' },
-  '2001:db8::1',
-  '16 bytes');
+  { value: { type: 'ipv6' } },
+  { value: '2001:db8::1' },
+  'Object with IPv6 standard');
 
 generateFixture('binary_empty',
-  { type: 'string', format: 'binary' },
-  Buffer.from([]).toString('base64'),
-  '4 bytes length (0)');
+  { value: { type: 'binary' } },
+  { value: Buffer.from([]).toString('base64') },
+  'Object with empty binary');
 
 generateFixture('binary_small',
-  { type: 'string', format: 'binary' },
-  Buffer.from([1, 2, 3]).toString('base64'),
-  '4 bytes length + 3 bytes data');
+  { value: { type: 'binary' } },
+  { value: Buffer.from([1, 2, 3]).toString('base64') },
+  'Object with small binary');
 
 // 3. Arrays
 console.log('\nArrays:');
 generateFixture('array_empty',
-  { type: 'array', items: { type: 'integer', format: 'int32' } },
-  [],
-  '4 bytes length (0)');
+  { value: { type: 'array', items: { type: 'int32' } } },
+  { value: [] },
+  'Object with empty array');
 
 generateFixture('array_int32_1_2_3',
-  { type: 'array', items: { type: 'integer', format: 'int32' } },
-  [1, 2, 3],
-  '4 bytes length + (3 × 4 bytes)');
+  { value: { type: 'array', items: { type: 'int32' } } },
+  { value: [1, 2, 3] },
+  'Object with int32 array [1,2,3]');
 
 generateFixture('array_strings',
-  { type: 'array', items: { type: 'string' } },
-  ['a', 'b', 'c'],
-  '4 bytes length + strings');
+  { value: { type: 'array', items: { type: 'string' } } },
+  { value: ['a', 'b', 'c'] },
+  'Object with string array');
 
 // 4. Objects
 console.log('\nObjects:');
 generateFixture('object_simple',
   {
-    type: 'object',
-    properties: {
-      value: { type: 'integer', format: 'int32' }
-    },
-    required: ['value']
+    value: { type: 'int32' }
   },
   { value: 42 },
   'Single int32 property');
 
 generateFixture('object_x_y',
   {
-    type: 'object',
-    properties: {
-      x: { type: 'integer', format: 'int32' },
-      y: { type: 'integer', format: 'int32' }
-    },
-    required: ['x', 'y']
+    x: { type: 'int32' },
+    y: { type: 'int32' }
   },
   { x: 10, y: 20 },
   'Two int32 properties in schema order');
@@ -266,56 +257,39 @@ generateFixture('object_x_y',
 // Test that property order in VALUE doesn't matter
 generateFixture('object_y_x_value_order',
   {
-    type: 'object',
-    properties: {
-      x: { type: 'integer', format: 'int32' },
-      y: { type: 'integer', format: 'int32' }
-    },
-    required: ['x', 'y']
+    x: { type: 'int32' },
+    y: { type: 'int32' }
   },
   { y: 20, x: 10 }, // Reversed order in value
   'Same as object_x_y (schema order wins)');
 
 generateFixture('object_with_optional',
   {
-    type: 'object',
-    properties: {
-      id: { type: 'integer', format: 'int32' },
-      name: { type: 'string' }
-    },
-    required: ['id']
+    id: { type: 'int32' },
+    name: { type: 'string', optional: true }
   },
   { id: 1, name: 'Alice' },
   'Required + optional field present');
 
 generateFixture('object_optional_missing',
   {
-    type: 'object',
-    properties: {
-      id: { type: 'integer', format: 'int32' },
-      name: { type: 'string' }
-    },
-    required: ['id']
+    id: { type: 'int32' },
+    name: { type: 'string', optional: true }
   },
   { id: 1 },
-  'Required + optional field missing (null)');
+  'Required + optional field missing');
 
 // 5. Nested Objects
 console.log('\nNested Structures:');
 generateFixture('nested_simple',
   {
-    type: 'object',
-    properties: {
-      user: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          age: { type: 'integer', format: 'int32' }
-        },
-        required: ['name', 'age']
+    user: {
+      type: 'object',
+      schema: {
+        name: { type: 'string' },
+        age: { type: 'int32' }
       }
-    },
-    required: ['user']
+    }
   },
   {
     user: {
@@ -329,15 +303,11 @@ generateFixture('nested_simple',
 console.log('\nComplex Examples:');
 generateFixture('user_complete',
   {
-    type: 'object',
-    properties: {
-      id: { type: 'string', format: 'uuid' },
-      name: { type: 'string' },
-      email: { type: 'string' },
-      age: { type: 'integer', format: 'int32' },
-      created_at: { type: 'string', format: 'date-time' }
-    },
-    required: ['id', 'name', 'email', 'age', 'created_at']
+    id: { type: 'uuid' },
+    name: { type: 'string' },
+    email: { type: 'string' },
+    age: { type: 'int32' },
+    created_at: { type: 'date-time' }
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440000',

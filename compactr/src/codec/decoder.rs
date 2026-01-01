@@ -75,10 +75,15 @@ impl Decoder {
                 i64::from(buf.get_i32()) // Big-endian
             }
             IntegerFormat::Int64 => {
+                // compactr.js encodes int64 as IEEE 754 double (f64) due to JavaScript limitations
                 if buf.remaining() < 8 {
                     return Err(DecodeError::UnexpectedEof.into());
                 }
-                buf.get_i64() // Big-endian
+                let double_val = buf.get_f64(); // Big-endian
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    double_val as i64
+                }
             }
         };
 
@@ -173,9 +178,9 @@ impl Decoder {
         properties: &IndexMap<String, crate::schema::Property>,
         registry: &SchemaRegistry,
     ) -> Result<Value> {
-        // Compactr.js format: Header + Content structure
-        // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size, ...]
-        // Content: [prop0_value, prop1_value, ...]
+        // Compactr.js 3.x format: Interleaved structure
+        // [num_props, index0, size0, value0, index1, size1, value1, ...]
+        // Properties are indexed alphabetically by name
 
         if !buf.has_remaining() {
             return Err(DecodeError::UnexpectedEof.into());
@@ -184,36 +189,65 @@ impl Decoder {
         // Read number of properties present
         let num_props = buf.get_u8() as usize;
 
-        // Read header: property indices and sizes
-        let mut prop_info: Vec<(usize, usize)> = Vec::with_capacity(num_props);
-        for _ in 0..num_props {
-            if buf.remaining() < 2 {
-                return Err(DecodeError::UnexpectedEof.into());
-            }
-            let prop_idx = buf.get_u8() as usize;
-            let prop_size = buf.get_u8() as usize;
-            prop_info.push((prop_idx, prop_size));
-        }
-
-        // Convert properties IndexMap to Vec for index-based access
-        let props_vec: Vec<(String, crate::schema::Property)> = properties
+        // Create alphabetically sorted property list for index-based access
+        let mut props_vec: Vec<(String, crate::schema::Property)> = properties
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
+        props_vec.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // Decode content: property values
+        // Decode each property: index, size, value (interleaved)
         let mut obj = IndexMap::new();
-        for (prop_idx, prop_size) in prop_info {
+        for _ in 0..num_props {
+            if !buf.has_remaining() {
+                return Err(DecodeError::UnexpectedEof.into());
+            }
+
+            // Read property index
+            let prop_idx = buf.get_u8() as usize;
+
             if prop_idx >= props_vec.len() {
                 return Err(DecodeError::InvalidData(format!(
-                    "Property index {} out of range (max {})",
-                    prop_idx,
+                    "Property index {prop_idx} out of range (max {})",
                     props_vec.len() - 1
                 ))
                 .into());
             }
 
             let (prop_name, prop_def) = &props_vec[prop_idx];
+
+            // Determine if this is a compound type (for future use)
+            let _is_compound = matches!(
+                prop_def.schema_type,
+                SchemaType::Array(_) | SchemaType::Object(_)
+            );
+
+            // Read size with appropriate decoding
+            if !buf.has_remaining() {
+                return Err(DecodeError::UnexpectedEof.into());
+            }
+
+            let size_byte = buf.get_u8();
+            let prop_size = if size_byte == 0 {
+                // Compound type or large value: multi-byte size follows
+                if buf.remaining() < 1 {
+                    return Err(DecodeError::UnexpectedEof.into());
+                }
+                let next_byte = buf.get_u8();
+                if next_byte > 0 || buf.remaining() < 1 {
+                    // Single byte size after 0x00 flag
+                    next_byte as usize
+                } else {
+                    // Two-byte size (u16) after 0x00 flag
+                    if buf.remaining() < 1 {
+                        return Err(DecodeError::UnexpectedEof.into());
+                    }
+                    let high_byte = buf.get_u8();
+                    ((next_byte as usize) << 8) | (high_byte as usize)
+                }
+            } else {
+                size_byte as usize
+            };
 
             // Read exactly prop_size bytes for this property
             if buf.remaining() < prop_size {
@@ -224,8 +258,9 @@ impl Decoder {
             buf.copy_to_slice(&mut prop_bytes);
             let mut prop_buf = &prop_bytes[..];
 
+            // Decode property value (handles strings without length prefix)
             let prop_value =
-                Self::decode_with_registry(&mut prop_buf, &prop_def.schema_type, registry)?;
+                Self::decode_property_value(&mut prop_buf, &prop_def.schema_type, registry)?;
 
             obj.insert(prop_name.clone(), prop_value);
         }
@@ -238,6 +273,28 @@ impl Decoder {
         }
 
         Ok(Value::Object(obj))
+    }
+
+    /// Decodes a property value (strings without length prefix, etc.)
+    fn decode_property_value(
+        buf: &mut impl Buf,
+        schema: &SchemaType,
+        registry: &SchemaRegistry,
+    ) -> Result<Value> {
+        match schema {
+            SchemaType::String(StringFormat::Plain) => {
+                // For strings in objects: decode raw UTF-8 bytes (no length prefix)
+                let remaining = buf.remaining();
+                let mut bytes = vec![0u8; remaining];
+                buf.copy_to_slice(&mut bytes);
+
+                String::from_utf8(bytes)
+                    .map(Value::String)
+                    .map_err(|e| DecodeError::InvalidData(format!("Invalid UTF-8: {e}")).into())
+            }
+            // For all other types, use normal decoding
+            _ => Self::decode_with_registry(buf, schema, registry),
+        }
     }
 
     fn decode_null(buf: &mut impl Buf) -> Result<Value> {

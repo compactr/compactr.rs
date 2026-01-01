@@ -6,11 +6,11 @@ use std::path::Path;
 
 #[test]
 fn test_decode_int32_42() {
-    let fixture_path = Path::new("compactr/tests/fixtures/int32_42.bin");
+    let fixture_path = Path::new("tests/fixtures/int32_42.bin");
 
     if !fixture_path.exists() {
         println!("⚠️  Fixture not found, skipping test");
-        println!("   Run: node compactr/tests/fixtures/generate_fixtures.js");
+        println!("   Run: node tests/fixtures/generate_fixtures.js");
         return;
     }
 

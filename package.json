@@ -8,7 +8,7 @@
     "test": "npm run generate-fixtures && cargo test"
   },
   "dependencies": {
-    "compactr": "^2.4.1"
+    "compactr": "^3.0.0"
   },
   "devDependencies": {},
   "engines": {

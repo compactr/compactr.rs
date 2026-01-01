@@ -109,7 +109,9 @@ impl Encoder {
                 self.buf.put_i32(int_val as i32); // Big-endian
             }
             IntegerFormat::Int64 => {
-                self.buf.put_i64(int_val); // Big-endian
+                // compactr.js encodes int64 as IEEE 754 double (f64) due to JavaScript limitations
+                #[allow(clippy::cast_precision_loss)]
+                self.buf.put_f64(int_val as f64); // Big-endian
             }
         }
 
@@ -295,23 +297,43 @@ impl Encoder {
             .into());
         };
 
-        // Compactr.js format: Header + Content structure
-        // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size, ...]
-        // Content: [prop0_value, prop1_value, ...]
+        // Compactr.js 3.x format: Interleaved structure
+        // [num_props, index0, size0, value0, index1, size1, value1, ...]
+        // Properties are indexed alphabetically by name
 
-        // Build list of present properties with their indices (alphabetical order)
+        // Create alphabetically sorted property list to determine indices
+        let mut sorted_props: Vec<(String, crate::schema::Property)> = properties
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        sorted_props.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Build list of present properties with their alphabetical indices
+        // Encode in the order properties appear in the VALUE object
         let mut present_props: Vec<(usize, &String, &crate::schema::Property, &Value)> = Vec::new();
 
-        for (idx, (prop_name, prop_def)) in properties.iter().enumerate() {
-            if let Some(prop_value) = obj.get(prop_name) {
-                present_props.push((idx, prop_name, prop_def, prop_value));
-            } else if prop_def.required {
+        // Check for required fields first
+        for (prop_name, prop_def) in properties {
+            if prop_def.required && !obj.contains_key(prop_name) {
                 return Err(SchemaError::MissingField(prop_name.clone()).into());
             }
-            // Optional properties that are missing are simply omitted
         }
 
-        // Encode header
+        // Iterate over value object keys (preserving insertion order)
+        for (prop_name, prop_value) in obj {
+            // Check if this property is in the schema
+            if let Some(prop_def) = properties.get(prop_name) {
+                // Find the alphabetical index of this property
+                let alpha_idx = sorted_props
+                    .iter()
+                    .position(|(name, _)| name == prop_name)
+                    .unwrap();
+
+                present_props.push((alpha_idx, prop_name, prop_def, prop_value));
+            }
+            // Ignore properties not in schema
+        }
+
         // First byte: number of properties present
         if present_props.len() > 255 {
             return Err(EncodeError::InvalidFormat(format!(
@@ -323,39 +345,93 @@ impl Encoder {
         #[allow(clippy::cast_possible_truncation)]
         self.buf.put_u8(present_props.len() as u8);
 
-        // Encode property values to a temporary buffer to calculate sizes
-        let mut content_buf = BytesMut::new();
-        let mut prop_sizes: Vec<usize> = Vec::new();
-
-        for (_idx, _prop_name, prop_def, prop_value) in &present_props {
-            let before_len = content_buf.len();
-            let mut temp_encoder = Encoder::with_buf(content_buf);
-            temp_encoder.encode_with_registry(prop_value, &prop_def.schema_type, registry)?;
-            content_buf = temp_encoder.buf;
-            let after_len = content_buf.len();
-            prop_sizes.push(after_len - before_len);
-        }
-
-        // Encode header: property indices and sizes
-        for (i, (idx, _prop_name, _prop_def, _prop_value)) in present_props.iter().enumerate() {
+        // Encode each property: index, size, value (interleaved in alphabetical order)
+        for (idx, _prop_name, prop_def, prop_value) in present_props {
+            // Write property index
             #[allow(clippy::cast_possible_truncation)]
-            self.buf.put_u8(*idx as u8); // Property index
+            self.buf.put_u8(idx as u8);
 
-            let size = prop_sizes[i];
-            if size > 255 {
-                return Err(EncodeError::InvalidFormat(format!(
-                    "Property value too large: {size} bytes (max 255)"
-                ))
-                .into());
+            // Encode value to a temporary buffer to calculate size
+            let mut value_buf = BytesMut::new();
+            let mut temp_encoder = Encoder::with_buf(value_buf);
+            temp_encoder.encode_property_value(prop_value, &prop_def.schema_type, registry)?;
+            value_buf = temp_encoder.buf;
+
+            let size = value_buf.len();
+
+            // Determine if this is a compound type
+            let is_compound = matches!(
+                prop_def.schema_type,
+                SchemaType::Array(_) | SchemaType::Object(_)
+            );
+
+            // Write size with appropriate encoding
+            if is_compound {
+                // Compound types: always use 0x00 prefix, then variable-length
+                self.buf.put_u8(0); // Compound type flag
+                if size < 256 {
+                    #[allow(clippy::cast_possible_truncation)]
+                    self.buf.put_u8(size as u8);
+                } else {
+                    if size > u16::MAX as usize {
+                        return Err(EncodeError::InvalidFormat(format!(
+                            "Property value too large: {size} bytes (max {})",
+                            u16::MAX
+                        ))
+                        .into());
+                    }
+                    #[allow(clippy::cast_possible_truncation)]
+                    self.buf.put_u16(size as u16);
+                }
+            } else if size >= 256 {
+                // Large primitives: 0x00 prefix + u16
+                if size > u16::MAX as usize {
+                    return Err(EncodeError::InvalidFormat(format!(
+                        "Property value too large: {size} bytes (max {})",
+                        u16::MAX
+                    ))
+                    .into());
+                }
+                self.buf.put_u8(0);
+                #[allow(clippy::cast_possible_truncation)]
+                self.buf.put_u16(size as u16);
+            } else {
+                // Small primitives: single-byte encoding
+                #[allow(clippy::cast_possible_truncation)]
+                self.buf.put_u8(size as u8);
             }
-            #[allow(clippy::cast_possible_truncation)]
-            self.buf.put_u8(size as u8); // Property size
-        }
 
-        // Append content
-        self.buf.extend_from_slice(&content_buf);
+            // Write value bytes
+            self.buf.extend_from_slice(&value_buf);
+        }
 
         Ok(())
+    }
+
+    /// Encodes a property value (strings without length prefix, etc.)
+    fn encode_property_value(
+        &mut self,
+        value: &Value,
+        schema: &SchemaType,
+        registry: &SchemaRegistry,
+    ) -> Result<()> {
+        match schema {
+            SchemaType::String(StringFormat::Plain) => {
+                // For strings in objects: encode raw UTF-8 bytes (no length prefix)
+                if let Value::String(s) = value {
+                    self.buf.put_slice(s.as_bytes());
+                    Ok(())
+                } else {
+                    Err(EncodeError::TypeMismatch {
+                        expected: "string".to_owned(),
+                        actual: value_type_name(value),
+                    }
+                    .into())
+                }
+            }
+            // For all other types, use normal encoding
+            _ => self.encode_with_registry(value, schema, registry),
+        }
     }
 
     // Helper to create encoder with existing buffer

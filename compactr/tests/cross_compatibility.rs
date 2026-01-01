@@ -6,7 +6,7 @@
 //! ## Setup
 //!
 //! 1. Install compactr.js: `npm install`
-//! 2. Generate fixtures: `node compactr/tests/fixtures/generate_fixtures.js`
+//! 2. Generate fixtures: `node tests/fixtures/generate_fixtures.js`
 //! 3. Run tests: `cargo test --test cross_compatibility`
 //!
 //! Or run the setup script: `./scripts/setup-fixtures.sh`
@@ -17,13 +17,13 @@ use std::path::Path;
 
 /// Load a binary fixture file if it exists
 fn load_fixture(name: &str) -> Option<Vec<u8>> {
-    let path = Path::new("compactr/tests/fixtures").join(format!("{name}.bin"));
+    let path = Path::new("tests/fixtures").join(format!("{name}.bin"));
     std::fs::read(path).ok()
 }
 
 /// Check if fixtures are available
 fn fixtures_available() -> bool {
-    Path::new("compactr/tests/fixtures/manifest.json").exists()
+    Path::new("tests/fixtures/manifest.json").exists()
 }
 
 /// Print helpful message if fixtures are missing
@@ -31,7 +31,7 @@ fn check_fixtures_or_skip() {
     if !fixtures_available() {
         println!("\n⚠️  JavaScript fixtures not found!");
         println!("   Run: ./scripts/setup-fixtures.sh");
-        println!("   Or:  npm install && node compactr/tests/fixtures/generate_fixtures.js\n");
+        println!("   Or:  npm install && node tests/fixtures/generate_fixtures.js\n");
     }
 }
 
@@ -47,15 +47,20 @@ fn test_00_fixtures_available() {
 /// Test boolean encoding matches JS
 #[test]
 fn test_boolean_compatibility() {
-    let schema = SchemaType::boolean();
+    // Fixtures use {value: boolean} format
+    let mut properties = IndexMap::new();
+    properties.insert(
+        "value".to_owned(),
+        Property::required(SchemaType::boolean()),
+    );
+    let schema = SchemaType::object(properties);
 
     // Test true
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Boolean(true));
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Boolean(true), &schema).unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    assert_eq!(rust_bytes.len(), 1);
-    assert_eq!(rust_bytes[0], 1);
 
     if let Some(js_bytes) = load_fixture("boolean_true") {
         assert_eq!(
@@ -68,12 +73,11 @@ fn test_boolean_compatibility() {
     }
 
     // Test false
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Boolean(false));
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Boolean(false), &schema).unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    assert_eq!(rust_bytes.len(), 1);
-    assert_eq!(rust_bytes[0], 0);
 
     if let Some(js_bytes) = load_fixture("boolean_false") {
         assert_eq!(
@@ -87,15 +91,17 @@ fn test_boolean_compatibility() {
 /// Test integer encoding matches JS
 #[test]
 fn test_integer_compatibility() {
-    let schema = SchemaType::int32();
+    // Fixtures use {value: int32} format
+    let mut properties = IndexMap::new();
+    properties.insert("value".to_owned(), Property::required(SchemaType::int32()));
+    let schema = SchemaType::object(properties);
 
     // Test 42
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Integer(42));
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Integer(42), &schema).unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    // Expected: 4 bytes big-endian
-    assert_eq!(rust_bytes.as_ref(), &[0, 0, 0, 42]);
 
     if let Some(js_bytes) = load_fixture("int32_42") {
         assert_eq!(
@@ -106,14 +112,15 @@ fn test_integer_compatibility() {
     }
 
     // Test i64
-    let schema = SchemaType::int64();
-    let mut encoder = Encoder::new();
-    encoder
-        .encode(&Value::Integer(9_007_199_254_740_991), &schema)
-        .unwrap(); // Max safe JS integer
-    let rust_bytes = encoder.finish();
+    let mut properties = IndexMap::new();
+    properties.insert("value".to_owned(), Property::required(SchemaType::int64()));
+    let schema = SchemaType::object(properties);
 
-    assert_eq!(rust_bytes.len(), 8);
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Integer(9_007_199_254_740_991)); // Max safe JS integer
+    let mut encoder = Encoder::new();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
+    let rust_bytes = encoder.finish();
 
     if let Some(js_bytes) = load_fixture("int64_max_safe") {
         assert_eq!(rust_bytes.as_ref(), js_bytes.as_slice());
@@ -123,19 +130,17 @@ fn test_integer_compatibility() {
 /// Test string encoding matches JS
 #[test]
 fn test_string_compatibility() {
-    let schema = SchemaType::string();
+    // Fixtures use {value: string} format
+    let mut properties = IndexMap::new();
+    properties.insert("value".to_owned(), Property::required(SchemaType::string()));
+    let schema = SchemaType::object(properties);
 
     // Test "Hello"
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::String("Hello".to_owned()));
     let mut encoder = Encoder::new();
-    encoder
-        .encode(&Value::String("Hello".to_owned()), &schema)
-        .unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    // Format: 2 byte length + UTF-8
-    assert_eq!(rust_bytes.len(), 7); // 2 + 5 (5 bytes UTF-8)
-    assert_eq!(&rust_bytes[0..2], &[0, 5]); // length in big-endian u16
-    assert_eq!(&rust_bytes[2..], &[72, 101, 108, 108, 111]); // UTF-8 "Hello"
 
     if let Some(js_bytes) = load_fixture("string_hello") {
         assert_eq!(
@@ -145,14 +150,12 @@ fn test_string_compatibility() {
         );
     }
 
-    // Test empty string (new format: 0x00 0x00)
+    // Test empty string
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::String("".to_owned()));
     let mut encoder = Encoder::new();
-    encoder
-        .encode(&Value::String("".to_owned()), &schema)
-        .unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    assert_eq!(rust_bytes.as_ref(), &[0, 0]);
 
     if let Some(js_bytes) = load_fixture("string_empty") {
         assert_eq!(rust_bytes.as_ref(), js_bytes.as_slice());
@@ -164,16 +167,21 @@ fn test_string_compatibility() {
 fn test_uuid_compatibility() {
     use uuid::Uuid;
 
-    let schema = SchemaType::string_uuid();
+    // Fixtures use {value: uuid} format
+    let mut properties = IndexMap::new();
+    properties.insert(
+        "value".to_owned(),
+        Property::required(SchemaType::string_uuid()),
+    );
+    let schema = SchemaType::object(properties);
+
     let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Uuid(uuid));
 
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Uuid(uuid), &schema).unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    // UUID should be 16 bytes
-    assert_eq!(rust_bytes.len(), 16);
-    assert_eq!(rust_bytes.as_ref(), uuid.as_bytes());
 
     if let Some(js_bytes) = load_fixture("uuid_standard") {
         assert_eq!(
@@ -189,14 +197,21 @@ fn test_uuid_compatibility() {
 fn test_ipv4_compatibility() {
     use std::net::Ipv4Addr;
 
-    let schema = SchemaType::string_ipv4();
+    // Fixtures use {value: ipv4} format
+    let mut properties = IndexMap::new();
+    properties.insert(
+        "value".to_owned(),
+        Property::required(SchemaType::string_ipv4()),
+    );
+    let schema = SchemaType::object(properties);
+
     let ip = Ipv4Addr::new(192, 168, 1, 1);
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Ipv4(ip));
 
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Ipv4(ip), &schema).unwrap();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
-
-    assert_eq!(rust_bytes.as_ref(), &[192, 168, 1, 1]);
 
     if let Some(js_bytes) = load_fixture("ipv4_192_168_1_1") {
         assert_eq!(
@@ -210,32 +225,28 @@ fn test_ipv4_compatibility() {
 /// Test array encoding matches JS
 #[test]
 fn test_array_compatibility() {
-    let schema = SchemaType::array(SchemaType::int32());
+    // Fixtures use {value: array} format
+    let mut properties = IndexMap::new();
+    properties.insert(
+        "value".to_owned(),
+        Property::required(SchemaType::array(SchemaType::int32())),
+    );
+    let schema = SchemaType::object(properties);
 
     // Test [1, 2, 3]
-    let mut encoder = Encoder::new();
-    encoder
-        .encode(
-            &Value::Array(vec![
-                Value::Integer(1),
-                Value::Integer(2),
-                Value::Integer(3),
-            ]),
-            &schema,
-        )
-        .unwrap();
-    let rust_bytes = encoder.finish();
-
-    // Format: size-prefixed elements: [size1, elem1, size2, elem2, size3, elem3]
-    assert_eq!(rust_bytes.len(), 15); // 3 * (1 byte size + 4 bytes value)
-    assert_eq!(
-        rust_bytes.as_ref(),
-        &[
-            4, 0, 0, 0, 1, // size=4, value=1 (big-endian)
-            4, 0, 0, 0, 2, // size=4, value=2 (big-endian)
-            4, 0, 0, 0, 3 // size=4, value=3 (big-endian)
-        ]
+    let mut obj = IndexMap::new();
+    obj.insert(
+        "value".to_owned(),
+        Value::Array(vec![
+            Value::Integer(1),
+            Value::Integer(2),
+            Value::Integer(3),
+        ]),
     );
+
+    let mut encoder = Encoder::new();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
+    let rust_bytes = encoder.finish();
 
     if let Some(js_bytes) = load_fixture("array_int32_1_2_3") {
         assert_eq!(
@@ -245,12 +256,13 @@ fn test_array_compatibility() {
         );
     }
 
-    // Test empty array (new size-prefixed format: empty = no bytes)
-    let mut encoder = Encoder::new();
-    encoder.encode(&Value::Array(vec![]), &schema).unwrap();
-    let rust_bytes = encoder.finish();
+    // Test empty array
+    let mut obj = IndexMap::new();
+    obj.insert("value".to_owned(), Value::Array(vec![]));
 
-    assert_eq!(rust_bytes.as_ref(), &[] as &[u8]);
+    let mut encoder = Encoder::new();
+    encoder.encode(&Value::Object(obj), &schema).unwrap();
+    let rust_bytes = encoder.finish();
 
     if let Some(js_bytes) = load_fixture("array_empty") {
         assert_eq!(rust_bytes.as_ref(), js_bytes.as_slice());
@@ -273,16 +285,15 @@ fn test_object_compatibility() {
     encoder.encode(&Value::Object(obj), &schema).unwrap();
     let rust_bytes = encoder.finish();
 
-    // New header/content format
-    // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size]
-    // Content: [prop0_value, prop1_value]
+    // Compactr.js 3.x interleaved format
+    // [num_props, index0, size0, value0, index1, size1, value1, ...]
     assert_eq!(
         rust_bytes.as_ref(),
         &[
             2, // 2 properties
             0, 4, // property 0 (x), size 4
-            1, 4, // property 1 (y), size 4
             0, 0, 0, 10, // x = 10 (big-endian)
+            1, 4, // property 1 (y), size 4
             0, 0, 0, 20 // y = 20 (big-endian)
         ]
     );
@@ -329,7 +340,7 @@ fn test_user_object_compatibility() {
     obj.insert("age".to_owned(), Value::Integer(28));
     obj.insert(
         "created_at".to_owned(),
-        Value::DateTime(Utc.timestamp_millis_opt(1_705_315_800_000).unwrap()), // 2024-01-15T10:30:00Z
+        Value::DateTime(Utc.timestamp_millis_opt(1_705_314_600_000).unwrap()), // 2024-01-15T10:30:00Z
     );
 
     let mut encoder = Encoder::new();
@@ -396,7 +407,7 @@ fn test_validate_all_fixtures() {
         return;
     }
 
-    let manifest_path = Path::new("compactr/tests/fixtures/manifest.json");
+    let manifest_path = Path::new("tests/fixtures/manifest.json");
     let manifest_data =
         std::fs::read_to_string(manifest_path).expect("Failed to read manifest.json");
     let manifest: JsonValue =

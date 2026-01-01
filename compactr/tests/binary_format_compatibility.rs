@@ -66,6 +66,8 @@ fn test_int32_binary_format() {
 fn test_int64_binary_format() {
     let schema = SchemaType::int64();
 
+    // compactr.js encodes int64 as IEEE 754 double (f64)
+
     // Test 0
     let mut encoder = Encoder::new();
     encoder.encode(&Value::Integer(0), &schema).unwrap();
@@ -73,19 +75,21 @@ fn test_int64_binary_format() {
     assert_eq!(bytes.len(), 8);
     assert_eq!(&bytes[..], &[0, 0, 0, 0, 0, 0, 0, 0]);
 
-    // Test positive number (big-endian)
+    // Test 42 (as f64: 0x40 0x45 0x00...)
     let mut encoder = Encoder::new();
     encoder.encode(&Value::Integer(42), &schema).unwrap();
     let bytes = encoder.finish();
     assert_eq!(bytes.len(), 8);
-    assert_eq!(&bytes[..], &[0, 0, 0, 0, 0, 0, 0, 42]);
+    assert_eq!(&bytes[..], &[64, 69, 0, 0, 0, 0, 0, 0]);
 
-    // Test max i64 (big-endian)
+    // Test max safe integer (9007199254740991, as f64)
     let mut encoder = Encoder::new();
-    encoder.encode(&Value::Integer(i64::MAX), &schema).unwrap();
+    encoder
+        .encode(&Value::Integer(9_007_199_254_740_991), &schema)
+        .unwrap();
     let bytes = encoder.finish();
     assert_eq!(bytes.len(), 8);
-    assert_eq!(&bytes[..], &[127, 255, 255, 255, 255, 255, 255, 255]);
+    assert_eq!(&bytes[..], &[67, 63, 255, 255, 255, 255, 255, 255]);
 }
 
 #[test]
@@ -181,21 +185,25 @@ fn test_datetime_binary_format() {
 
     let schema = SchemaType::string_datetime();
 
-    // Test Unix epoch (timestamp = 0)
+    // compactr.js 3.x format: 9 bytes (year, month, day, hour, minute, second, milliseconds)
+
+    // Test Unix epoch (1970-01-01 00:00:00.000)
     let dt = Utc.timestamp_opt(0, 0).unwrap();
     let mut encoder = Encoder::new();
     encoder.encode(&Value::DateTime(dt), &schema).unwrap();
     let bytes = encoder.finish();
-    assert_eq!(bytes.len(), 8);
-    assert_eq!(&bytes[..], &[0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(bytes.len(), 9);
+    // year=1970 (0x07B2), month=1, day=1, hour=0, min=0, sec=0, millis=0 (0x0000)
+    assert_eq!(&bytes[..], &[7, 178, 1, 1, 0, 0, 0, 0, 0]);
 
-    // Test 1000 milliseconds (1 second) after epoch
+    // Test 1 second after epoch (1970-01-01 00:00:01.000)
     let dt = Utc.timestamp_millis_opt(1000).unwrap();
     let mut encoder = Encoder::new();
     encoder.encode(&Value::DateTime(dt), &schema).unwrap();
     let bytes = encoder.finish();
-    assert_eq!(bytes.len(), 8);
-    assert_eq!(&bytes[..], &[0, 0, 0, 0, 0, 0, 3, 232]); // 1000 in big-endian i64
+    assert_eq!(bytes.len(), 9);
+    // year=1970, month=1, day=1, hour=0, min=0, sec=1, millis=0
+    assert_eq!(&bytes[..], &[7, 178, 1, 1, 0, 0, 1, 0, 0]);
 }
 
 #[test]
@@ -324,17 +332,16 @@ fn test_object_binary_format() {
     encoder.encode(&Value::Object(obj), &schema).unwrap();
     let bytes = encoder.finish();
 
-    // New header/content format:
-    // Header: [num_props, prop0_idx, prop0_size, prop1_idx, prop1_size]
-    // Content: [prop0_value, prop1_value]
-    assert_eq!(bytes.len(), 13); // 5 bytes header + 8 bytes content
+    // compactr.js 3.x interleaved format:
+    // [num_props, index0, size0, value0, index1, size1, value1, ...]
+    assert_eq!(bytes.len(), 13);
     assert_eq!(
         &bytes[..],
         &[
             2, // 2 properties
             0, 4, // property 0 (x), size 4
-            1, 4, // property 1 (y), size 4
             0, 0, 0, 10, // x = 10 (big-endian)
+            1, 4, // property 1 (y), size 4
             0, 0, 0, 20 // y = 20 (big-endian)
         ]
     );
@@ -393,13 +400,16 @@ fn test_deterministic_encoding() {
 /// Test that property order in schema matters (not in value)
 #[test]
 fn test_property_order_matters() {
-    // Schema 1: x first, then y
+    // compactr.js 3.x uses ALPHABETICAL property indexing
+    // Schema property order doesn't matter - always sorted alphabetically
+
+    // Schema 1: x first, then y (insertion order)
     let mut properties1 = IndexMap::new();
     properties1.insert("x".to_owned(), Property::required(SchemaType::int32()));
     properties1.insert("y".to_owned(), Property::required(SchemaType::int32()));
     let schema1 = SchemaType::object(properties1);
 
-    // Schema 2: y first, then x
+    // Schema 2: y first, then x (insertion order)
     let mut properties2 = IndexMap::new();
     properties2.insert("y".to_owned(), Property::required(SchemaType::int32()));
     properties2.insert("x".to_owned(), Property::required(SchemaType::int32()));
@@ -410,28 +420,33 @@ fn test_property_order_matters() {
     obj.insert("x".to_owned(), Value::Integer(10));
     obj.insert("y".to_owned(), Value::Integer(20));
 
-    // Encode with schema1 (x, y order)
+    // Encode with schema1
     let mut encoder1 = Encoder::new();
     encoder1
         .encode(&Value::Object(obj.clone()), &schema1)
         .unwrap();
     let bytes1 = encoder1.finish();
 
-    // Encode with schema2 (y, x order)
+    // Encode with schema2
     let mut encoder2 = Encoder::new();
     encoder2.encode(&Value::Object(obj), &schema2).unwrap();
     let bytes2 = encoder2.finish();
 
-    // Binary output should be different (different property indices)
-    assert_ne!(bytes1, bytes2);
+    // Binary output should be IDENTICAL (alphabetical indexing: x=0, y=1)
+    assert_eq!(bytes1, bytes2);
 
-    // bytes1 schema order: x (idx 0), y (idx 1)
-    // Header: [2, 0, 4, 1, 4], Content: [x=10, y=20]
-    assert_eq!(&bytes1[..], &[2, 0, 4, 1, 4, 0, 0, 0, 10, 0, 0, 0, 20]);
-
-    // bytes2 schema order: y (idx 0), x (idx 1)
-    // Header: [2, 0, 4, 1, 4], Content: [y=20, x=10]
-    assert_eq!(&bytes2[..], &[2, 0, 4, 1, 4, 0, 0, 0, 20, 0, 0, 0, 10]);
+    // Both use alphabetical order: x (idx 0), y (idx 1)
+    // Interleaved: [num, idx0, size0, val0, idx1, size1, val1]
+    assert_eq!(
+        &bytes1[..],
+        &[
+            2, // 2 properties
+            0, 4, // x (idx 0), size 4
+            0, 0, 0, 10, // x = 10
+            1, 4, // y (idx 1), size 4
+            0, 0, 0, 20 // y = 20
+        ]
+    );
 }
 
 /// Test optional fields with null encoding

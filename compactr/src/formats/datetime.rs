@@ -2,35 +2,77 @@
 
 use crate::error::{DecodeError, EncodeError};
 use bytes::{Buf, BufMut, BytesMut};
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Timelike, Utc};
 
-/// Encodes a `DateTime` as Unix timestamp in milliseconds (8 bytes, i64 big-endian).
+/// Encodes a `DateTime` in compactr.js format: 9 bytes (year, month, day, hour, minute, second, milliseconds).
+///
+/// Format:
+/// - 2 bytes: year (u16 big-endian)
+/// - 1 byte: month (1-12)
+/// - 1 byte: day (1-31)
+/// - 1 byte: hour (0-23)
+/// - 1 byte: minute (0-59)
+/// - 1 byte: second (0-59)
+/// - 2 bytes: milliseconds (0-999, u16 big-endian)
 ///
 /// # Errors
 ///
-/// This function currently does not return errors, but the signature uses `Result` for consistency.
+/// Returns an error if the datetime components are out of valid ranges.
 pub fn encode_datetime(buf: &mut BytesMut, dt: &DateTime<Utc>) -> Result<(), EncodeError> {
-    let timestamp_ms = dt.timestamp_millis();
-    buf.put_i64(timestamp_ms); // Big-endian
+    let year = dt.year();
+    if !(0..=65535).contains(&year) {
+        return Err(EncodeError::InvalidFormat(format!(
+            "Year out of range: {year}"
+        )));
+    }
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    buf.put_u16(year as u16); // Big-endian
+
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        buf.put_u8(dt.month() as u8);
+        buf.put_u8(dt.day() as u8);
+        buf.put_u8(dt.hour() as u8);
+        buf.put_u8(dt.minute() as u8);
+        buf.put_u8(dt.second() as u8);
+
+        // Milliseconds from nanoseconds
+        let millis = dt.timestamp_subsec_millis();
+        buf.put_u16(millis as u16); // Big-endian
+    }
+
     Ok(())
 }
 
-/// Decodes a `DateTime` from Unix timestamp in milliseconds.
+/// Decodes a `DateTime` from compactr.js format (9 bytes).
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The buffer has insufficient data
-/// - The timestamp is invalid or out of range
+/// - The datetime components are invalid
 pub fn decode_datetime(buf: &mut impl Buf) -> Result<DateTime<Utc>, DecodeError> {
-    if buf.remaining() < 8 {
+    if buf.remaining() < 9 {
         return Err(DecodeError::UnexpectedEof);
     }
 
-    let timestamp_ms = buf.get_i64(); // Big-endian
-    Utc.timestamp_millis_opt(timestamp_ms)
+    let year = i32::from(buf.get_u16()); // Big-endian
+    let month = u32::from(buf.get_u8());
+    let day = u32::from(buf.get_u8());
+    let hour = u32::from(buf.get_u8());
+    let minute = u32::from(buf.get_u8());
+    let second = u32::from(buf.get_u8());
+    let millis = u32::from(buf.get_u16()); // Big-endian
+
+    Utc.with_ymd_and_hms(year, month, day, hour, minute, second)
         .single()
-        .ok_or_else(|| DecodeError::InvalidData(format!("Invalid timestamp: {timestamp_ms}")))
+        .and_then(|dt| dt.checked_add_signed(chrono::Duration::milliseconds(i64::from(millis))))
+        .ok_or_else(|| {
+            DecodeError::InvalidData(format!(
+                "Invalid datetime: {year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}.{millis:03}"
+            ))
+        })
 }
 
 /// Encodes a `Date` as days since Unix epoch (4 bytes, i32 big-endian).
@@ -100,10 +142,10 @@ pub fn parse_date(s: &str) -> Result<NaiveDate, EncodeError> {
         .map_err(|e| EncodeError::InvalidFormat(format!("Invalid date: {e}")))
 }
 
-/// Returns the encoded size of a `DateTime` (always 8 bytes).
+/// Returns the encoded size of a `DateTime` (always 9 bytes).
 #[must_use]
 pub const fn datetime_size() -> usize {
-    8
+    9
 }
 
 /// Returns the encoded size of a `Date` (always 4 bytes).
